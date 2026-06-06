@@ -147,6 +147,64 @@ export const QUESTIONS: UseCase[] = [
 	},
 ];
 
+export interface Milestone {
+	year: number;
+	title: string;
+	family: 'SNARK' | 'STARK' | 'Both';
+	note: string;
+}
+
+export const MILESTONES: Milestone[] = [
+	{
+		year: 1992,
+		family: 'Both',
+		title: 'PCP Theorem',
+		note: 'Probabilistically checkable proofs: any NP statement can be verified by spot-checking a tiny piece of a proof — the theoretical seed of every modern succinct proof system.',
+	},
+	{
+		year: 2013,
+		family: 'SNARK',
+		title: 'Pinocchio',
+		note: 'First end-to-end SNARK toolchain (Parno et al.). The moment SNARKs crossed from "theoretical" to "could run on a real computer".',
+	},
+	{
+		year: 2014,
+		family: 'SNARK',
+		title: 'Zcash launches',
+		note: 'First major production SNARK deployment, with the famous Sprout multi-party setup ceremony to dilute toxic-waste risk.',
+	},
+	{
+		year: 2016,
+		family: 'SNARK',
+		title: 'Groth16',
+		note: 'Smallest known practical SNARK proof (~128 B) and pairing-based constant-time verification. Still the gold standard for proof size.',
+	},
+	{
+		year: 2018,
+		family: 'STARK',
+		title: 'STARK paper',
+		note: 'Ben-Sasson, Bentov, Horesh & Riabzev introduce transparent, post-quantum-plausible proofs via FRI — no trusted setup, hash functions only.',
+	},
+	{
+		year: 2019,
+		family: 'SNARK',
+		title: 'PLONK',
+		note: 'Universal & updatable trusted setup: one ceremony reusable across many circuits, lifting a major operational burden of earlier SNARKs.',
+	},
+	{
+		year: 2019,
+		family: 'SNARK',
+		title: 'Halo',
+		note: 'First recursive composition without a trusted setup (Bowe, Grigg, Hopwood). Opened the door to incrementally-verifiable computation.',
+	},
+	{
+		year: 2022,
+		family: 'STARK',
+		title: 'Plonky2',
+		note: 'Recursive STARK with a SNARK wrapper from Polygon Zero. Millisecond verification of complex statements; a high-water mark for prover throughput.',
+	},
+];
+
 export interface SharedTrait {
 	title: string;
 	body: string;

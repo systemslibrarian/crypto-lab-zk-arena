@@ -4,6 +4,7 @@ import {
 	SYSTEMS,
 	QUESTIONS,
 	SHARED,
+	MILESTONES,
 	type Dimension,
 	type Winner,
 } from './data.ts';
@@ -25,6 +26,13 @@ function escapeHtml(s: string): string {
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;');
+}
+
+function formatBytes(b: number): string {
+	if (b < 1024) return `${b} B`;
+	const kb = b / 1024;
+	if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
+	return `${(kb / 1024).toFixed(2)} MB`;
 }
 
 function winnerChip(w: Winner): string {
@@ -86,7 +94,7 @@ function renderArena(): HTMLElement {
       <div>
         <p class="section-kicker">Head to head</p>
         <h2 id="playground-heading">The Arena</h2>
-        <p class="section-footnote">Select any dimension to see how the two systems compare and who it favours. Use arrow keys to move between dimensions.</p>
+        <p class="section-footnote">Select any dimension to see how the two systems compare and who it favours. Use arrow keys to move between dimensions, or press <kbd>1</kbd>–<kbd>${DIMENSIONS.length}</kbd> to jump directly.</p>
       </div>
     </div>
     <div class="arena-grid">
@@ -127,7 +135,7 @@ function renderArena(): HTMLElement {
 	}
 
 	DIMENSIONS.forEach((d, i) => {
-		const row = el('button', 'dim-row', `<span>${escapeHtml(d.label)}</span>${winnerChip(d.winner)}`);
+		const row = el('button', 'dim-row', `<span class="dim-row__label"><span class="dim-row__num" aria-hidden="true">${i + 1}</span>${escapeHtml(d.label)}</span>${winnerChip(d.winner)}`);
 		row.type = 'button';
 		row.id = `tab-${d.id}`;
 		row.setAttribute('role', 'tab');
@@ -153,10 +161,190 @@ function renderArena(): HTMLElement {
 		if (i === 0) paint(d);
 	});
 
+	// expose a global hook so keyboard-shortcut layer can drive it
+	(window as unknown as { __arenaJump?: (i: number) => void }).__arenaJump = (i: number) => {
+		if (i < 0 || i >= DIMENSIONS.length) return;
+		paint(DIMENSIONS[i], true);
+	};
+
+	return section;
+}
+
+// --- proof-size visualizer -------------------------------------------------
+function snarkProofBytes(log2n: number): number {
+	// Groth16-ish: ~192 B + small PLONK-ish growth
+	return Math.round(192 + 12 * log2n);
+}
+function starkProofBytes(log2n: number): number {
+	// FRI-based: ~40 KB at 2^10, grows polylog with circuit size
+	return Math.round(40000 + 6500 * Math.max(0, log2n - 10));
+}
+
+function renderProofVisualizer(): HTMLElement {
+	const section = el('section', 'lab-section');
+	section.setAttribute('aria-labelledby', 'viz-heading');
+	section.innerHTML = `
+    <div class="section-heading-row">
+      <div>
+        <p class="section-kicker">Make it visible</p>
+        <h2 id="viz-heading">Proof Sizes, To Scale</h2>
+        <p class="section-footnote">Every dot is 16 bytes drawn at the same scale across both panels. Slide to change circuit size and watch which proof actually fits on a screen.</p>
+      </div>
+    </div>
+    <div class="viz-controls">
+      <label for="viz-circuit" class="viz-control-label">Circuit size</label>
+      <input id="viz-circuit" type="range" min="10" max="25" step="1" value="16" />
+      <output for="viz-circuit" id="viz-circuit-out" class="viz-circuit-out mono-inline"></output>
+    </div>
+    <div class="viz-grid">
+      <figure class="viz-card viz-card--snark">
+        <figcaption class="viz-cap">
+          <span class="vs-chip vs-chip--snark">zk-SNARK</span>
+          <span class="viz-size mono-inline" id="viz-snark-size"></span>
+        </figcaption>
+        <div class="viz-canvas-wrap">
+          <canvas id="viz-snark" class="viz-canvas" aria-hidden="true"></canvas>
+        </div>
+        <dl class="viz-stats">
+          <div><dt>Verifier</dt><dd class="mono-inline">O(1)</dd></div>
+          <div><dt>Gas to post @ 16 g/B</dt><dd class="mono-inline" id="viz-snark-gas"></dd></div>
+        </dl>
+      </figure>
+      <figure class="viz-card viz-card--stark">
+        <figcaption class="viz-cap">
+          <span class="vs-chip vs-chip--stark">zk-STARK</span>
+          <span class="viz-size mono-inline" id="viz-stark-size"></span>
+        </figcaption>
+        <div class="viz-canvas-wrap">
+          <canvas id="viz-stark" class="viz-canvas" aria-hidden="true"></canvas>
+        </div>
+        <dl class="viz-stats">
+          <div><dt>Verifier</dt><dd class="mono-inline">O(log² N)</dd></div>
+          <div><dt>Gas to post @ 16 g/B</dt><dd class="mono-inline" id="viz-stark-gas"></dd></div>
+        </dl>
+      </figure>
+    </div>
+    <p class="viz-note section-footnote">Same byte-to-pixel scale on both canvases. Figures use representative formulas for Groth16-style SNARKs and FRI-based STARKs.</p>
+  `;
+
+	const slider = section.querySelector('#viz-circuit') as HTMLInputElement;
+	const circuitOut = section.querySelector('#viz-circuit-out') as HTMLOutputElement;
+	const snarkSize = section.querySelector('#viz-snark-size') as HTMLElement;
+	const starkSize = section.querySelector('#viz-stark-size') as HTMLElement;
+	const snarkGas = section.querySelector('#viz-snark-gas') as HTMLElement;
+	const starkGas = section.querySelector('#viz-stark-gas') as HTMLElement;
+	const snarkCanvas = section.querySelector('#viz-snark') as HTMLCanvasElement;
+	const starkCanvas = section.querySelector('#viz-stark') as HTMLCanvasElement;
+
+	const CELL = 4; // px per 16-byte cell
+	const GAP = 1;
+	const BYTES_PER_CELL = 16;
+	const SNARK_COLS = 8;
+	const STARK_COLS = 60;
+	const STARK_MAX_CELLS = STARK_COLS * 70; // cap render at ~67 KB worth of cells
+
+	function paintCanvas(
+		canvas: HTMLCanvasElement,
+		bytes: number,
+		cols: number,
+		maxCells: number,
+		color: string,
+	): void {
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
+		const total = Math.max(1, Math.ceil(bytes / BYTES_PER_CELL));
+		const drawn = Math.min(total, maxCells);
+		const rows = Math.max(1, Math.ceil(drawn / cols));
+		const pxW = cols * (CELL + GAP);
+		const pxH = rows * (CELL + GAP);
+		const dpr = window.devicePixelRatio || 1;
+		canvas.width = Math.round(pxW * dpr);
+		canvas.height = Math.round(pxH * dpr);
+		canvas.style.width = pxW + 'px';
+		canvas.style.height = pxH + 'px';
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		ctx.clearRect(0, 0, pxW, pxH);
+		ctx.fillStyle = color;
+		for (let i = 0; i < drawn; i++) {
+			const r = Math.floor(i / cols);
+			const c = i % cols;
+			ctx.fillRect(c * (CELL + GAP), r * (CELL + GAP), CELL, CELL);
+		}
+		// if truncated, draw a fade overlay on last row to hint at "more"
+		if (drawn < total) {
+			const lastRowY = (rows - 1) * (CELL + GAP);
+			const grad = ctx.createLinearGradient(0, lastRowY, 0, lastRowY + CELL + GAP);
+			grad.addColorStop(0, 'rgba(0,0,0,0)');
+			grad.addColorStop(1, 'rgba(0,0,0,0.55)');
+			ctx.fillStyle = grad;
+			ctx.fillRect(0, lastRowY, pxW, CELL + GAP + 2);
+		}
+	}
+
+	function readColors(): { snark: string; stark: string } {
+		const styles = getComputedStyle(document.documentElement);
+		const snark = styles.getPropertyValue('--accent').trim() || '#0a6f96';
+		const stark = styles.getPropertyValue('--accent-3').trim() || '#c68b1a';
+		return { snark, stark };
+	}
+
+	function paint(): void {
+		const log2n = Number(slider.value);
+		const n = 2 ** log2n;
+		circuitOut.innerHTML = `2<sup>${log2n}</sup> = ${n.toLocaleString()} constraints`;
+		const sB = snarkProofBytes(log2n);
+		const tB = starkProofBytes(log2n);
+		snarkSize.textContent = formatBytes(sB);
+		starkSize.textContent = formatBytes(tB);
+		snarkGas.textContent = '≈ ' + (sB * 16).toLocaleString();
+		starkGas.textContent = '≈ ' + (tB * 16).toLocaleString();
+		const colors = readColors();
+		paintCanvas(snarkCanvas, sB, SNARK_COLS, SNARK_COLS * 200, colors.snark);
+		paintCanvas(starkCanvas, tB, STARK_COLS, STARK_MAX_CELLS, colors.stark);
+	}
+
+	slider.addEventListener('input', paint);
+	// repaint on theme change so cell colours track the CSS vars
+	new MutationObserver(paint).observe(document.documentElement, {
+		attributes: true,
+		attributeFilter: ['data-theme'],
+	});
+	// initial paint, deferred to after fonts/css apply
+	queueMicrotask(paint);
+
 	return section;
 }
 
 // --- use-case recommender --------------------------------------------------
+function readHashAnswers(): Record<string, number> {
+	const m = location.hash.match(/[#&]q=([0-9.]+)/i);
+	if (!m) return {};
+	const compact = m[1];
+	const out: Record<string, number> = {};
+	QUESTIONS.forEach((q, i) => {
+		const ch = compact[i];
+		if (!ch || ch === '.') return;
+		const idx = Number(ch);
+		if (Number.isFinite(idx) && idx >= 0 && idx < q.options.length) out[q.id] = idx;
+	});
+	return out;
+}
+
+function writeHashAnswers(answers: Record<string, number>): void {
+	const compact = QUESTIONS.map((q) =>
+		answers[q.id] !== undefined ? String(answers[q.id]) : '.',
+	).join('');
+	const allEmpty = compact === '.'.repeat(QUESTIONS.length);
+	const url = allEmpty
+		? location.pathname + location.search
+		: location.pathname + location.search + '#q=' + compact;
+	try {
+		history.replaceState(null, '', url);
+	} catch {
+		// non-fatal
+	}
+}
+
 function renderRecommender(): HTMLElement {
 	const section = el('section', 'lab-section');
 	section.setAttribute('aria-labelledby', 'recommender-heading');
@@ -165,18 +353,26 @@ function renderRecommender(): HTMLElement {
       <div>
         <p class="section-kicker">Recommender</p>
         <h2 id="recommender-heading">Pick Your Use Case</h2>
-        <p class="section-footnote">Answer a few questions and the arena will score a recommendation. Nothing here is absolute — it weights the tradeoffs.</p>
+        <p class="section-footnote">Answer a few questions and the arena will score a recommendation. Your answers are saved in the URL — copy the link to share your result.</p>
       </div>
     </div>
     <div class="quiz" role="form" aria-labelledby="recommender-heading"></div>
     <div class="quiz-result" id="quiz-result" role="status" aria-live="polite" hidden></div>
     <div class="quiz-actions">
       <button id="quiz-reset" class="ghost-button" type="button">Reset answers</button>
+      <button id="quiz-share" class="ghost-button" type="button" hidden>
+        <span class="quiz-share__icon" aria-hidden="true">🔗</span>
+        <span class="quiz-share__label">Copy share link</span>
+      </button>
     </div>
   `;
 	const quiz = section.querySelector('.quiz') as HTMLElement;
 	const result = section.querySelector('#quiz-result') as HTMLElement;
-	const answers: Record<string, number> = {};
+	const resetBtn = section.querySelector('#quiz-reset') as HTMLButtonElement;
+	const shareBtn = section.querySelector('#quiz-share') as HTMLButtonElement;
+	const shareLabel = shareBtn.querySelector('.quiz-share__label') as HTMLElement;
+
+	const answers: Record<string, number> = readHashAnswers();
 
 	function score(): void {
 		const totals = { snark: 0, stark: 0 };
@@ -188,6 +384,7 @@ function renderRecommender(): HTMLElement {
 			totals.snark += q.options[idx].weight.snark;
 			totals.stark += q.options[idx].weight.stark;
 		}
+		shareBtn.hidden = answered === 0;
 		if (answered === 0) {
 			result.hidden = true;
 			return;
@@ -237,18 +434,46 @@ function renderRecommender(): HTMLElement {
 		quiz.appendChild(card);
 	});
 
-	function selectOption(qid: string, idx: number, focus = false): void {
-		answers[qid] = idx;
+	function paintSelection(qid: string): void {
 		const group = quiz.querySelectorAll<HTMLButtonElement>(`.quiz-opt[data-q="${qid}"]`);
+		const sel = answers[qid];
 		group.forEach((b) => {
-			const isSel = Number(b.dataset.i) === idx;
+			const isSel = sel !== undefined && Number(b.dataset.i) === sel;
 			b.classList.toggle('is-selected', isSel);
 			b.setAttribute('aria-checked', isSel ? 'true' : 'false');
-			b.tabIndex = isSel ? 0 : -1;
-			if (isSel && focus) b.focus();
 		});
-		if (!Array.from(group).some((b) => b.tabIndex === 0)) group[0].tabIndex = 0;
+		// ensure exactly one tab-focusable per group
+		const focusables = Array.from(group).filter((b) => b.tabIndex === 0);
+		if (sel !== undefined) {
+			group.forEach((b) => (b.tabIndex = Number(b.dataset.i) === sel ? 0 : -1));
+		} else if (focusables.length === 0) {
+			group[0].tabIndex = 0;
+		}
+	}
+
+	function selectOption(qid: string, idx: number, focus = false): void {
+		answers[qid] = idx;
+		paintSelection(qid);
+		if (focus) {
+			const btn = quiz.querySelector<HTMLButtonElement>(
+				`.quiz-opt[data-q="${qid}"][data-i="${idx}"]`,
+			);
+			btn?.focus();
+		}
 		score();
+		writeHashAnswers(answers);
+	}
+
+	function resetQuiz(): void {
+		for (const k of Object.keys(answers)) delete answers[k];
+		quiz.querySelectorAll<HTMLButtonElement>('.quiz-opt').forEach((b) => {
+			b.classList.remove('is-selected');
+			b.setAttribute('aria-checked', 'false');
+			b.tabIndex = Number(b.dataset.i) === 0 ? 0 : -1;
+		});
+		result.hidden = true;
+		shareBtn.hidden = true;
+		writeHashAnswers(answers);
 	}
 
 	quiz.addEventListener('click', (e) => {
@@ -275,15 +500,30 @@ function renderRecommender(): HTMLElement {
 		selectOption(qid, next, true);
 	});
 
-	(section.querySelector('#quiz-reset') as HTMLElement).addEventListener('click', () => {
-		for (const k of Object.keys(answers)) delete answers[k];
-		quiz.querySelectorAll<HTMLButtonElement>('.quiz-opt').forEach((b) => {
-			b.classList.remove('is-selected');
-			b.setAttribute('aria-checked', 'false');
-			b.tabIndex = Number(b.dataset.i) === 0 ? 0 : -1;
-		});
-		result.hidden = true;
+	resetBtn.addEventListener('click', resetQuiz);
+	resetBtn.id = 'quiz-reset';
+
+	shareBtn.addEventListener('click', async () => {
+		try {
+			await navigator.clipboard.writeText(location.href);
+			const prev = shareLabel.textContent;
+			shareLabel.textContent = 'Copied!';
+			shareBtn.classList.add('is-copied');
+			setTimeout(() => {
+				shareLabel.textContent = prev;
+				shareBtn.classList.remove('is-copied');
+			}, 1800);
+		} catch {
+			shareLabel.textContent = 'Press Ctrl+C to copy URL';
+		}
 	});
+
+	// restore from hash
+	QUESTIONS.forEach((q) => paintSelection(q.id));
+	score();
+
+	// expose reset for keyboard layer
+	(window as unknown as { __quizReset?: () => void }).__quizReset = resetQuiz;
 
 	return section;
 }
@@ -316,6 +556,49 @@ function renderSystems(): HTMLElement {
     </div>
     <div class="playground-grid">${cards}</div>
   `;
+	return section;
+}
+
+// --- milestones timeline ---------------------------------------------------
+function renderTimeline(): HTMLElement {
+	const section = el('section', 'lab-section');
+	section.setAttribute('aria-labelledby', 'timeline-heading');
+	const familyClass = (f: 'SNARK' | 'STARK' | 'Both') =>
+		f === 'SNARK' ? 'vs-chip--snark' : f === 'STARK' ? 'vs-chip--stark' : 'vs-chip--tie';
+	const cards = MILESTONES.map(
+		(m) => `
+    <li class="timeline-card">
+      <div class="timeline-card__top">
+        <time class="timeline-year mono-inline" datetime="${m.year}">${m.year}</time>
+        <span class="vs-chip ${familyClass(m.family)}" aria-label="Family: ${m.family}">${m.family}</span>
+      </div>
+      <h3 class="timeline-title">${escapeHtml(m.title)}</h3>
+      <p class="panel-copy">${escapeHtml(m.note)}</p>
+    </li>`,
+	).join('');
+	section.innerHTML = `
+    <div class="section-heading-row">
+      <div>
+        <p class="section-kicker">A short history</p>
+        <h2 id="timeline-heading">Milestones</h2>
+        <p class="section-footnote">A non-exhaustive timeline of moments that shaped what SNARKs and STARKs look like today. Scroll horizontally on touch, or use ← → on desktop.</p>
+      </div>
+    </div>
+    <div class="timeline-scroll" tabindex="0" aria-label="ZK milestones, scrollable">
+      <ol class="timeline-rail">${cards}</ol>
+    </div>
+  `;
+	const scroll = section.querySelector('.timeline-scroll') as HTMLElement;
+	scroll.addEventListener('keydown', (e) => {
+		const step = scroll.clientWidth * 0.8;
+		if (e.key === 'ArrowRight') {
+			e.preventDefault();
+			scroll.scrollBy({ left: step, behavior: 'smooth' });
+		} else if (e.key === 'ArrowLeft') {
+			e.preventDefault();
+			scroll.scrollBy({ left: -step, behavior: 'smooth' });
+		}
+	});
 	return section;
 }
 
@@ -354,6 +637,8 @@ function renderFooter(): HTMLElement {
     <p class="footer-meta">
       <a href="https://github.com/systemslibrarian/crypto-lab-zk-arena" rel="noopener" class="footer-link">View source on GitHub</a>
       <span aria-hidden="true"> · </span>
+      <button id="open-shortcuts" type="button" class="footer-link footer-link--button">Keyboard shortcuts <kbd>?</kbd></button>
+      <span aria-hidden="true"> · </span>
       <span>© ${year} systemslibrarian</span>
     </p>
     <p class="scripture">“So whether you eat or drink or whatever you do, do it all for the glory of God.” — 1 Corinthians 10:31</p>
@@ -378,13 +663,136 @@ function renderBackToTop(): HTMLElement {
 	return btn;
 }
 
+// --- keyboard shortcuts overlay --------------------------------------------
+const SHORTCUTS: { key: string; label: string }[] = [
+	{ key: '?', label: 'Open this help' },
+	{ key: 'Esc', label: 'Close any overlay' },
+	{ key: 'T', label: 'Toggle theme' },
+	{ key: 'R', label: 'Reset recommender answers' },
+	{ key: '1 – 8', label: 'Jump to that Arena dimension' },
+	{ key: '←  →', label: 'Within the Arena: previous / next dimension' },
+];
+
+function buildShortcutsOverlay(): HTMLElement {
+	const overlay = el('div', 'kbd-overlay');
+	overlay.id = 'kbd-overlay';
+	overlay.setAttribute('role', 'dialog');
+	overlay.setAttribute('aria-modal', 'true');
+	overlay.setAttribute('aria-labelledby', 'kbd-title');
+	overlay.setAttribute('aria-hidden', 'true');
+	overlay.hidden = true;
+	const rows = SHORTCUTS.map(
+		(s) =>
+			`<tr><th scope="row"><kbd>${escapeHtml(s.key)}</kbd></th><td>${escapeHtml(s.label)}</td></tr>`,
+	).join('');
+	overlay.innerHTML = `
+    <div class="kbd-backdrop" data-kbd-close></div>
+    <div class="kbd-dialog" role="document">
+      <div class="kbd-dialog__head">
+        <h2 id="kbd-title">Keyboard shortcuts</h2>
+        <button type="button" class="kbd-close" aria-label="Close" data-kbd-close>×</button>
+      </div>
+      <table class="kbd-table"><tbody>${rows}</tbody></table>
+      <p class="section-footnote">Shortcuts are ignored while you're typing in an input.</p>
+    </div>
+  `;
+	return overlay;
+}
+
+function setupKeyboardLayer(): void {
+	const overlay = buildShortcutsOverlay();
+	document.body.appendChild(overlay);
+	const dialog = overlay.querySelector('.kbd-dialog') as HTMLElement;
+	let lastFocused: HTMLElement | null = null;
+
+	function open(): void {
+		if (!overlay.hidden) return;
+		lastFocused = (document.activeElement as HTMLElement) ?? null;
+		overlay.hidden = false;
+		overlay.setAttribute('aria-hidden', 'false');
+		document.body.classList.add('kbd-open');
+		const closeBtn = overlay.querySelector('.kbd-close') as HTMLButtonElement;
+		closeBtn.focus();
+	}
+
+	function close(): void {
+		if (overlay.hidden) return;
+		overlay.hidden = true;
+		overlay.setAttribute('aria-hidden', 'true');
+		document.body.classList.remove('kbd-open');
+		lastFocused?.focus?.();
+	}
+
+	overlay.addEventListener('click', (e) => {
+		if ((e.target as HTMLElement).closest('[data-kbd-close]')) close();
+	});
+
+	// trap Tab inside dialog while open
+	dialog.addEventListener('keydown', (e) => {
+		if (e.key !== 'Tab') return;
+		const focusable = dialog.querySelectorAll<HTMLElement>(
+			'button, [href], [tabindex]:not([tabindex="-1"])',
+		);
+		if (focusable.length === 0) return;
+		const first = focusable[0];
+		const last = focusable[focusable.length - 1];
+		if (e.shiftKey && document.activeElement === first) {
+			e.preventDefault();
+			last.focus();
+		} else if (!e.shiftKey && document.activeElement === last) {
+			e.preventDefault();
+			first.focus();
+		}
+	});
+
+	document.addEventListener('keydown', (e) => {
+		const target = e.target as HTMLElement;
+		const editable =
+			target && target.matches('input, textarea, select, [contenteditable="true"]');
+		if (e.key === 'Escape') {
+			if (!overlay.hidden) {
+				e.preventDefault();
+				close();
+			}
+			return;
+		}
+		if (editable || e.altKey || e.ctrlKey || e.metaKey) return;
+		if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+			e.preventDefault();
+			overlay.hidden ? open() : close();
+			return;
+		}
+		const k = e.key.toLowerCase();
+		if (k === 't') {
+			(document.getElementById('theme-toggle') as HTMLButtonElement | null)?.click();
+		} else if (k === 'r') {
+			(window as unknown as { __quizReset?: () => void }).__quizReset?.();
+		} else if (/^[1-9]$/.test(e.key)) {
+			const idx = parseInt(e.key, 10) - 1;
+			(window as unknown as { __arenaJump?: (i: number) => void }).__arenaJump?.(idx);
+		}
+	});
+
+	document.addEventListener('click', (e) => {
+		if ((e.target as HTMLElement).closest('#open-shortcuts')) open();
+	});
+}
+
 export function mountApp(root: HTMLDivElement): void {
 	const shell = el('div', 'page-shell');
 	const main = el('main');
 	main.id = 'main';
 	main.setAttribute('tabindex', '-1');
-	main.append(renderArena(), renderRecommender(), renderSystems(), renderShared());
+	main.append(
+		renderArena(),
+		renderProofVisualizer(),
+		renderRecommender(),
+		renderSystems(),
+		renderTimeline(),
+		renderShared(),
+	);
 	shell.append(renderHero(), main, renderFooter());
 	root.appendChild(shell);
 	root.appendChild(renderBackToTop());
+	setupKeyboardLayer();
 }
