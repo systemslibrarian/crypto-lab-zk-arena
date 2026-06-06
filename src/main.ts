@@ -18,12 +18,18 @@ mountApp(document.querySelector<HTMLDivElement>('#app')!);
 (function initThemeToggle() {
 	const button = document.getElementById('theme-toggle') as HTMLButtonElement | null;
 	if (!button) return;
+	const icon = button.querySelector<HTMLSpanElement>('.theme-toggle__icon');
 	function apply(theme: string): void {
 		document.documentElement.setAttribute('data-theme', theme);
-		localStorage.setItem('theme', theme);
+		try {
+			localStorage.setItem('theme', theme);
+		} catch {
+			// storage unavailable (private mode) — non-fatal
+		}
 		const isDark = theme === 'dark';
-		button!.textContent = isDark ? '\u{1F319}' : '\u2600\uFE0F';
+		if (icon) icon.textContent = isDark ? '\u{1F319}' : '☀️';
 		button!.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+		button!.setAttribute('aria-pressed', isDark ? 'false' : 'true');
 	}
 	const current = document.documentElement.getAttribute('data-theme') ?? 'dark';
 	apply(current);

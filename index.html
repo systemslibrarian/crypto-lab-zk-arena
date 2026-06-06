@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          var pref = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', saved || pref);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#12101a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fff7eb" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+
+    <title>zk-Arena: SNARK vs STARK — crypto-lab</title>
+    <meta
+      name="description"
+      content="zk-SNARK vs zk-STARK head-to-head — compare proof size, trusted setup, post-quantum security, and prover time, with an interactive use-case recommender."
+    />
+    <meta name="author" content="systemslibrarian" />
+    <meta name="keywords" content="zero knowledge, zk-SNARK, zk-STARK, ZKP, cryptography, post-quantum, trusted setup, Plonky2, FRI, Halo2, PLONK, Groth16" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="zk-Arena: SNARK vs STARK" />
+    <meta property="og:description" content="An interactive head-to-head of zk-SNARKs and zk-STARKs across proof size, setup, post-quantum security, and more — with a use-case recommender." />
+    <meta property="og:url" content="https://systemslibrarian.github.io/crypto-lab-zk-arena/" />
+    <meta property="og:image" content="https://systemslibrarian.github.io/crypto-lab-zk-arena/favicon.svg" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="zk-Arena: SNARK vs STARK" />
+    <meta name="twitter:description" content="An interactive head-to-head of zk-SNARKs and zk-STARKs — with a use-case recommender." />
+
+    <link rel="canonical" href="https://systemslibrarian.github.io/crypto-lab-zk-arena/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap"
+    />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <div id="app"></div>
+    <noscript>
+      <div class="noscript-banner" role="alert">
+        <p><strong>zk-Arena</strong> is an interactive comparison and needs JavaScript enabled to run. The repository's README has a written summary of the SNARK vs STARK tradeoffs.</p>
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

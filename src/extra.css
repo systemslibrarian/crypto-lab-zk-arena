@@ -1,0 +1,348 @@
+/* extra.css — components for the zk-arena lab. Reuses style.css palette. */
+
+/* vs chips */
+.vs-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--line-strong);
+  white-space: nowrap;
+}
+
+.vs-chip--snark {
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 38%, transparent);
+}
+
+.vs-chip--stark {
+  background: color-mix(in oklab, var(--accent-3) 24%, transparent);
+  color: color-mix(in oklab, var(--accent-3) 70%, black);
+  border-color: color-mix(in oklab, var(--accent-3) 50%, transparent);
+}
+
+[data-theme="dark"] .vs-chip--stark {
+  color: var(--accent-3);
+}
+
+.vs-chip--tie {
+  background: var(--panel-strong);
+  color: var(--ink-soft);
+}
+
+/* arena layout */
+.arena-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 20px;
+  margin-top: 22px;
+  align-items: start;
+}
+
+.dim-list {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.dim-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  min-height: 56px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-strong);
+  color: var(--ink-strong);
+  font-weight: 700;
+  text-align: left;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.dim-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.dim-row:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+}
+
+.dim-row.is-active {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, var(--panel-strong));
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 25%, transparent);
+}
+
+.dim-detail {
+  align-self: start;
+  min-width: 0;
+}
+
+.dim-detail:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.dim-versus {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  margin: 16px 0;
+}
+
+.dim-side {
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  min-width: 0;
+}
+
+.dim-side--snark.is-winner {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.dim-side--stark.is-winner {
+  border-color: var(--accent-3);
+  box-shadow: 0 0 0 1px var(--accent-3) inset;
+}
+
+.dim-side-name {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.dim-side-val {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--mono-block-bg);
+  color: var(--mono-block-fg);
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+  display: block;
+}
+
+.dim-vs {
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dim-verdict {
+  margin: 12px 0 4px;
+  color: var(--ink-soft);
+  font-weight: 700;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* recommender quiz */
+.quiz {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.quiz-card {
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel-strong);
+  margin: 0;
+  min-width: 0;
+}
+
+.quiz-legend {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 0;
+  margin: 0 0 12px;
+  color: var(--ink-strong);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.quiz-num {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.quiz-prompt-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.quiz-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.quiz-opt {
+  padding: 12px 18px;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--ink-strong);
+  font-weight: 600;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
+  text-align: left;
+}
+
+.quiz-opt:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.quiz-opt.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 18%, var(--panel));
+  color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 28%, transparent);
+}
+
+.quiz-result {
+  margin-top: 22px;
+  padding: 22px;
+  border-radius: 22px;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+}
+
+.quiz-result[hidden] {
+  display: none;
+}
+
+.result-bar {
+  display: flex;
+  height: 44px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.result-fill {
+  display: grid;
+  place-items: center;
+  color: #fff9f2;
+  white-space: nowrap;
+  transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+
+.result-fill__label {
+  padding: 0 12px;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.result-fill[style*="width:0"] .result-fill__label,
+.result-fill[style*="width: 0"] .result-fill__label {
+  display: none;
+}
+
+.result-fill {
+  /* show label when width is large enough — simple heuristic via container queries */
+}
+
+.result-fill .result-fill__label {
+  opacity: 1;
+}
+
+.result-fill--snark {
+  background: linear-gradient(90deg, var(--accent), color-mix(in oklab, var(--accent) 55%, black));
+}
+
+.result-fill--stark {
+  background: linear-gradient(90deg, var(--accent-3), color-mix(in oklab, var(--accent-3) 55%, black));
+  color: #1a1410;
+}
+
+.result-verdict {
+  margin: 16px 0 0;
+  color: var(--ink-strong);
+  line-height: 1.6;
+  font-size: 1.02rem;
+}
+
+.quiz-actions {
+  margin-top: 16px;
+}
+
+.scripture {
+  margin: 18px auto 0;
+  max-width: 60ch;
+  color: var(--ink-soft);
+  font-style: italic;
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 960px) {
+  .arena-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dim-versus {
+    grid-template-columns: 1fr;
+  }
+
+  .dim-vs {
+    padding: 4px 0;
+  }
+
+  .quiz-opt {
+    width: 100%;
+    text-align: left;
+  }
+
+  .result-bar {
+    height: 40px;
+  }
+
+  .result-fill__label {
+    font-size: 0.74rem;
+    padding: 0 8px;
+  }
+}

@@ -36,13 +36,24 @@ The Arena lets you click any comparison dimension to see both systems' values si
 
 ## Tech
 
-Vite + TypeScript, zero runtime dependencies. The comparison corpus and recommender weights live in `src/data.ts`; the arena and quiz UI are plain DOM in `src/ui.ts`. Dark mode by default with a persisted theme toggle.
+Vite + TypeScript, zero runtime dependencies. The comparison corpus and recommender weights live in `src/data.ts`; the arena and quiz UI are plain DOM in `src/ui.ts`. Dark mode by default with a persisted theme toggle that respects `prefers-color-scheme`.
 
 ```bash
 npm install
 npm run dev      # local dev server
 npm run build    # type-check + production build to dist/
+npm run preview  # serve the production build locally
 ```
+
+Deployed automatically to GitHub Pages from `main` via `.github/workflows/deploy.yml`.
+
+## Accessibility
+
+- WCAG-AA contrast in both themes; high-visibility focus rings.
+- Semantic landmarks (`<main>`, `<header role="banner">`, `<footer role="contentinfo">`) and a working skip link.
+- The dimension explorer is a proper `tablist`/`tabpanel` with arrow-key / Home / End navigation.
+- The recommender is a series of `radiogroup` fieldsets with arrow-key selection and `aria-checked` state.
+- Honours `prefers-reduced-motion` and `prefers-color-scheme`. 44 px+ touch targets throughout.
 
 ---
 

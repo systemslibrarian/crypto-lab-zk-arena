@@ -1,0 +1,18 @@
+{
+  "name": "zk-Arena: SNARK vs STARK — crypto-lab",
+  "short_name": "zk-Arena",
+  "description": "Interactive head-to-head comparison of zk-SNARKs and zk-STARKs with a use-case recommender.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#12101a",
+  "theme_color": "#12101a",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
