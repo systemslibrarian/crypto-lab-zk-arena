@@ -4,3 +4,5 @@ dist
 .DS_Store
 verify.mjs
 verify-x.mjs
+test-results/
+playwright-report/

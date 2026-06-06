@@ -3,6 +3,10 @@
 [![Deploy to GitHub Pages](https://github.com/systemslibrarian/crypto-lab-zk-arena/actions/workflows/deploy.yml/badge.svg)](https://github.com/systemslibrarian/crypto-lab-zk-arena/actions/workflows/deploy.yml)
 [![Live demo](https://img.shields.io/badge/live-demo-0a6f96)](https://systemslibrarian.github.io/crypto-lab-zk-arena/)
 [![No deps](https://img.shields.io/badge/runtime%20deps-0-c68b1a)](./package.json)
+[![Lighthouse: Performance 97](https://img.shields.io/badge/Lighthouse-Performance%2097-1e6f3a)](#audited)
+[![Lighthouse: A11y 100](https://img.shields.io/badge/Lighthouse-A11y%20100-1e6f3a)](#audited)
+[![Lighthouse: BP 100](https://img.shields.io/badge/Lighthouse-Best%20Practices%20100-1e6f3a)](#audited)
+[![Lighthouse: SEO 100](https://img.shields.io/badge/Lighthouse-SEO%20100-1e6f3a)](#audited)
 
 ## What It Is
 
@@ -49,7 +53,23 @@ npm run build    # type-check + production build to dist/
 npm run preview  # serve the production build locally
 ```
 
-Deployed automatically to GitHub Pages from `main` via `.github/workflows/deploy.yml`.
+Deployed automatically to GitHub Pages from `main` via `.github/workflows/deploy.yml`. Every push is gated on:
+unit tests → `tsc && vite build` → bundle-size budget (16 KB JS gz / 8 KB CSS gz) → Playwright E2E + axe-core a11y on Chromium → deploy.
+
+<a id="audited"></a>
+## Audited
+
+Run locally against the preview build:
+
+| Tool | Result |
+|---|---|
+| **Lighthouse Performance** | **97** (median of 3, throttled, headless) |
+| **Lighthouse Accessibility** | **100** |
+| **Lighthouse Best Practices** | **100** |
+| **Lighthouse SEO** | **100** |
+| **axe-core** (Chromium, Firefox, WebKit) | 0 violations across 49 passes per engine |
+| **Vitest** | 18 / 18 passing |
+| **Playwright E2E** | 11 / 11 passing |
 
 ## Accessibility
 

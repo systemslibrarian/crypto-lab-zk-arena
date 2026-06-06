@@ -453,6 +453,25 @@ function renderProtocol(): HTMLElement {
     </ol>
 
     <div id="proto-verdict" class="proto-verdict" hidden></div>
+
+    <details class="explanation-details proto-why-zk">
+      <summary>Why is this zero-knowledge?</summary>
+      <p>
+        Bob ends up convinced Alice knows <code>x</code>, yet he learns nothing about <code>x</code>. Why?
+        Because <strong>anyone</strong> could have produced a transcript indistinguishable from the real one — provided they got to pick <code>c</code> <em>before</em> committing to <code>t</code>:
+      </p>
+      <ol class="proto-sim-list">
+        <li>Pick a random challenge <code>c</code> and response <code>s</code>.</li>
+        <li>Compute <code>t = g<sup>s</sup> · y<sup>−c</sup> mod p</code>.</li>
+        <li>Output <code>(t, c, s)</code>. By construction <code>g<sup>s</sup> = t · y<sup>c</sup></code>, so verification accepts.</li>
+      </ol>
+      <p>
+        Bob's view of an honest run is statistically identical to this simulator's output — so anything he could compute from the real transcript he could already compute on his own. The protocol leaks zero bits about <code>x</code>.
+      </p>
+      <p>
+        The reason it's still sound is the order: when <code>t</code> is committed <em>first</em>, the simulator's trick stops working. The real prover has to know <code>x</code> to produce a valid <code>s</code> for <em>any</em> challenge Bob then sends.
+      </p>
+    </details>
   `;
 
 	const yEl = section.querySelector('#proto-y') as HTMLElement;
@@ -1193,6 +1212,8 @@ function setupEntryAnimations(): void {
 }
 
 export function mountApp(root: HTMLDivElement): void {
+	// Clear the static skeleton from index.html before mounting.
+	root.replaceChildren();
 	const shell = el('div', 'page-shell');
 	const main = el('main');
 	main.id = 'main';
