@@ -30,4 +30,17 @@ describe('hash codec', () => {
 		expect(isAllEmpty('.0...')).toBe(false);
 		expect(isAllEmpty('')).toBe(true);
 	});
+
+	it('drops whitespace, letters, and punctuation rather than coercing them to 0', () => {
+		// before the fix, Number(' ') = 0 would have silently selected option 0
+		expect(decodeAnswers(QUESTIONS, ' ' + '.'.repeat(QUESTIONS.length - 1))).toEqual({});
+		expect(decodeAnswers(QUESTIONS, 'a' + '.'.repeat(QUESTIONS.length - 1))).toEqual({});
+		expect(decodeAnswers(QUESTIONS, '+' + '.'.repeat(QUESTIONS.length - 1))).toEqual({});
+		expect(decodeAnswers(QUESTIONS, '\t' + '.'.repeat(QUESTIONS.length - 1))).toEqual({});
+	});
+
+	it('accepts only single-digit characters as answer indices', () => {
+		const answers = decodeAnswers(QUESTIONS, '0' + '.'.repeat(QUESTIONS.length - 1));
+		expect(answers).toEqual({ [QUESTIONS[0].id]: 0 });
+	});
 });

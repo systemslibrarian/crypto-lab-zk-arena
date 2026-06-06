@@ -18,6 +18,7 @@ export const Q: bigint = P - 1n;
 
 export function modpow(base: bigint, exp: bigint, mod: bigint): bigint {
 	if (mod <= 0n) throw new Error('modulus must be positive');
+	if (exp < 0n) throw new Error('negative exponent requires modular inverse; not supported');
 	let b = ((base % mod) + mod) % mod;
 	let e = exp;
 	let r = 1n;

@@ -24,6 +24,19 @@ describe('modpow', () => {
 			expect(modpow(a, p - 1n, p)).toBe(1n);
 		}
 	});
+	it('throws on negative exponent rather than silently returning 1', () => {
+		expect(() => modpow(2n, -1n, 13n)).toThrow(/negative/);
+	});
+	it('throws on non-positive modulus', () => {
+		expect(() => modpow(2n, 5n, 0n)).toThrow(/modulus/);
+		expect(() => modpow(2n, 5n, -7n)).toThrow(/modulus/);
+	});
+	it('handles negative base by normalising into [0, mod)', () => {
+		// (-1)^2 mod 7 = 1
+		expect(modpow(-1n, 2n, 7n)).toBe(1n);
+		// (-3)^3 mod 11 = -27 mod 11 = 6
+		expect(modpow(-3n, 3n, 11n)).toBe(6n);
+	});
 });
 
 describe('Schnorr identification', () => {

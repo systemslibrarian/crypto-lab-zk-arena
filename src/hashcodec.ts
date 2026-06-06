@@ -16,9 +16,11 @@ export function decodeAnswers(questions: UseCase[], compact: string): Record<str
 	const out: Record<string, number> = {};
 	questions.forEach((q, i) => {
 		const ch = compact[i];
-		if (!ch || ch === '.') return;
-		const idx = Number(ch);
-		if (Number.isFinite(idx) && idx >= 0 && idx < q.options.length) out[q.id] = idx;
+		// only accept '0'..'9'; '.' marks unanswered; anything else (whitespace,
+		// letters, punctuation) is dropped silently rather than coerced via Number().
+		if (!ch || !/^[0-9]$/.test(ch)) return;
+		const idx = ch.charCodeAt(0) - 48;
+		if (idx >= 0 && idx < q.options.length) out[q.id] = idx;
 	});
 	return out;
 }
