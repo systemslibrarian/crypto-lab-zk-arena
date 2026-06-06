@@ -354,6 +354,7 @@ function renderProtocol(): HTMLElement {
 	let r: bigint | null = null;
 	let proof: Proof | null = null;
 	let progress = 0; // how many steps have been completed (0..4)
+	let runEpoch = 0; // bumped on any reset/toggle; in-flight awaits check this
 	let mode: 'interactive' | 'fiat-shamir' = 'interactive';
 	let honest = true;
 	let revealSecret = false;
@@ -525,6 +526,7 @@ function renderProtocol(): HTMLElement {
 		r = null;
 		proof = null;
 		progress = 0;
+		runEpoch++;
 		clearFrom(1);
 		paintKeys();
 		updateButtons();
@@ -557,12 +559,29 @@ function renderProtocol(): HTMLElement {
 			let c: bigint;
 			let detail: string;
 			const t0 = performance.now();
-			if (mode === 'fiat-shamir') {
-				c = await fiatShamirChallenge(keypair.y, proof.t);
-				detail = `Fiat–Shamir: <code>c = SHA-256(g ‖ p ‖ y ‖ t) mod q</code>. No live verifier needed.`;
-			} else {
-				c = (randBig() % (Q - 1n)) + 1n;
-				detail = `Interactive: Bob samples a fresh random <code>c</code>.`;
+			const epoch = runEpoch;
+			const tSnap = proof.t;
+			const ySnap = keypair.y;
+			try {
+				if (mode === 'fiat-shamir') {
+					c = await fiatShamirChallenge(ySnap, tSnap);
+					detail = `Fiat–Shamir: <code>c = SHA-256(g ‖ p ‖ y ‖ t) mod q</code>. No live verifier needed.`;
+				} else {
+					c = (randBig() % (Q - 1n)) + 1n;
+					detail = `Interactive: Bob samples a fresh random <code>c</code>.`;
+				}
+			} catch (err) {
+				setStepState(
+					2,
+					`<p class="proto-note proto-note--warn">⚠ Could not compute challenge: ${escapeHtml(String((err as Error).message ?? err))}</p>`,
+				);
+				updateButtons();
+				return;
+			}
+			// If state was reset or mode toggled while the await was in flight,
+			// drop this stale result rather than corrupt proof state.
+			if (epoch !== runEpoch || proof === null) {
+				return;
 			}
 			const dt = performance.now() - t0;
 			proof = { ...proof, c };
@@ -629,6 +648,7 @@ function renderProtocol(): HTMLElement {
 					? `Fiat–Shamir: the challenge becomes <code>c = SHA-256(g ‖ p ‖ y ‖ t)</code> — no live Bob required.`
 					: `Bob picks a random challenge <code>c</code>.`;
 			if (progress >= 2) progress = 1;
+			runEpoch++;
 			clearFrom(2);
 			if (proof !== null) proof = { ...proof, c: 0n, s: 0n };
 			updateButtons();
@@ -644,6 +664,7 @@ function renderProtocol(): HTMLElement {
 				x.setAttribute('aria-checked', on ? 'true' : 'false');
 			});
 			if (progress >= 3) progress = 2;
+			runEpoch++;
 			clearFrom(3);
 			if (proof !== null) proof = { ...proof, s: 0n };
 			updateButtons();
