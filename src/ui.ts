@@ -241,7 +241,19 @@ function renderProofVisualizer(): HTMLElement {
         </dl>
       </figure>
     </div>
-    <p class="viz-note section-footnote">Same byte-to-pixel scale on both canvases. Figures use representative formulas for Groth16-style SNARKs and FRI-based STARKs.</p>
+    <details class="viz-note explanation-details">
+      <summary>How these numbers are computed</summary>
+      <p>
+        Both canvases share a single byte-to-pixel scale (one cell = 16 bytes). The figures are simplified models intended to convey scaling behaviour, not benchmarks:
+      </p>
+      <ul class="viz-formula-list">
+        <li><strong>SNARK</strong>: <code>≈ 192 + 12·log₂N</code> bytes — near-constant, modelled after pairing-based proofs such as <em>Groth16</em> (~128 B) and <em>PLONK</em> (~500 B), where size is dominated by a small number of group elements rather than circuit size.</li>
+        <li><strong>STARK</strong>: <code>≈ 40 000 + 6500·(log₂N − 10)</code> bytes — polylogarithmic in circuit size, modelled after <em>FRI</em>-based proofs whose size grows with the number of Merkle authentication paths needed for the FRI low-degree test.</li>
+      </ul>
+      <p>
+        Real proofs vary heavily with the circuit, the field, the security parameter, and any wrapping (e.g. a STARK compressed by a SNARK like Plonky2). Trust the orders of magnitude, not the exact bytes.
+      </p>
+    </details>
   `;
 
 	const slider = section.querySelector('#viz-circuit') as HTMLInputElement;
@@ -352,10 +364,10 @@ function renderProtocol(): HTMLElement {
         <p class="section-kicker">Live cryptography</p>
         <h2 id="protocol-heading">Run a Zero-Knowledge Proof</h2>
         <p class="section-footnote">
-          A working Schnorr identification protocol — the sigma-protocol skeleton that lives under every modern SNARK.
-          Alice convinces Bob she knows the secret <code class="proto-code">x</code> behind public
-          <code class="proto-code">y = g<sup>x</sup> mod p</code>, without revealing <code class="proto-code">x</code>.
-          Math runs in your browser with native <code class="proto-code">BigInt</code> and the Web Crypto API.
+          Alice proves she knows the secret <code class="proto-code">x</code> behind public
+          <code class="proto-code">y = g<sup>x</sup> mod p</code> — without revealing <code class="proto-code">x</code>.
+          This is the Schnorr identification protocol: the sigma-protocol skeleton at the heart of every SNARK.
+          Math runs in your browser via <code class="proto-code">BigInt</code> and the Web Crypto API.
         </p>
       </div>
     </div>
@@ -949,19 +961,36 @@ function renderFooter(): HTMLElement {
 }
 
 function renderBackToTop(): HTMLElement {
-	const btn = el('button', 'back-to-top', '↑ Top');
+	const btn = el('button', 'back-to-top', '↑');
 	btn.type = 'button';
 	btn.setAttribute('aria-label', 'Back to top');
+	btn.title = 'Back to top';
 	btn.hidden = true;
 	btn.addEventListener('click', () => {
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 		const main = document.getElementById('main');
 		main?.focus();
 	});
+	let footerInView = false;
 	const onScroll = () => {
-		btn.hidden = window.scrollY < 600;
+		const past = window.scrollY > 600;
+		btn.hidden = !past || footerInView;
 	};
 	window.addEventListener('scroll', onScroll, { passive: true });
+	// hide when the footer or near-bottom enters view so it never sits on
+	// top of footer links or the final section's action buttons.
+	requestAnimationFrame(() => {
+		const footer = document.querySelector('footer.site-footer');
+		if (!footer) return;
+		const io = new IntersectionObserver(
+			([entry]) => {
+				footerInView = entry.isIntersecting;
+				onScroll();
+			},
+			{ rootMargin: '0px 0px -50px 0px' },
+		);
+		io.observe(footer);
+	});
 	return btn;
 }
 

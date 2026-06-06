@@ -120,7 +120,11 @@ summary:focus-visible,
 }
 
 :target {
-  scroll-margin-top: 24px;
+  scroll-margin-top: 96px;
+}
+
+main > section[id] {
+  scroll-margin-top: 96px;
 }
 
 .skip-link {
@@ -615,27 +619,39 @@ main:focus {
   text-decoration: underline;
 }
 
-/* back to top */
+/* back to top — small icon affordance that won't compete with primary actions */
 .back-to-top {
   position: fixed;
   bottom: 22px;
   right: 22px;
-  z-index: 50;
-  min-height: 44px;
-  padding: 10px 16px;
-  border-radius: 999px;
+  z-index: 35;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
   border: 1px solid var(--line-strong);
   background: var(--panel-strong);
   color: var(--ink-strong);
-  font-weight: 700;
+  font: 700 1.05rem/1 var(--sans);
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  transition: transform 200ms ease, opacity 200ms ease;
+  display: grid;
+  place-items: center;
+  transition: transform 200ms ease, opacity 200ms ease, background 200ms ease;
+}
+
+@supports (backdrop-filter: blur(16px)) {
+  .back-to-top {
+    background: color-mix(in oklab, var(--panel-strong) 88%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
 }
 
 .back-to-top:hover {
   transform: translateY(-2px);
+  background: var(--accent);
+  color: #fff9f2;
+  border-color: var(--accent);
 }
 
 .back-to-top[hidden] {
