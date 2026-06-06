@@ -8,6 +8,23 @@ import {
 	type Dimension,
 	type Winner,
 } from './data.ts';
+import { decodeAnswers, encodeAnswers, isAllEmpty } from './hashcodec.ts';
+import {
+	G,
+	P,
+	commit as schnorrCommit,
+	fiatShamirChallenge,
+	fullHex,
+	modpow,
+	newKeypair,
+	randBig,
+	respond as schnorrRespond,
+	shortHex,
+	verify as schnorrVerify,
+	Q,
+	type Keypair,
+	type Proof,
+} from './schnorr.ts';
 
 function el<K extends keyof HTMLElementTagNameMap>(
 	tag: K,
@@ -315,27 +332,312 @@ function renderProofVisualizer(): HTMLElement {
 	return section;
 }
 
+// --- live Schnorr ZK protocol ----------------------------------------------
+function renderProtocol(): HTMLElement {
+	const section = el('section', 'lab-section');
+	section.id = 'protocol';
+	section.setAttribute('aria-labelledby', 'protocol-heading');
+
+	let keypair: Keypair = newKeypair();
+	let r: bigint | null = null;
+	let proof: Proof | null = null;
+	let progress = 0; // how many steps have been completed (0..4)
+	let mode: 'interactive' | 'fiat-shamir' = 'interactive';
+	let honest = true;
+	let revealSecret = false;
+
+	section.innerHTML = `
+    <div class="section-heading-row">
+      <div>
+        <p class="section-kicker">Live cryptography</p>
+        <h2 id="protocol-heading">Run a Zero-Knowledge Proof</h2>
+        <p class="section-footnote">
+          A working Schnorr identification protocol — the sigma-protocol skeleton that lives under every modern SNARK.
+          Alice convinces Bob she knows the secret <code class="proto-code">x</code> behind public
+          <code class="proto-code">y = g<sup>x</sup> mod p</code>, without revealing <code class="proto-code">x</code>.
+          Math runs in your browser with native <code class="proto-code">BigInt</code> and the Web Crypto API.
+        </p>
+      </div>
+    </div>
+
+    <div class="proto-mode-row" role="group" aria-label="Protocol controls">
+      <div class="proto-toggle" role="radiogroup" aria-label="Mode">
+        <button class="proto-toggle__btn is-active" type="button" role="radio" aria-checked="true" data-mode="interactive">Interactive (3 messages)</button>
+        <button class="proto-toggle__btn" type="button" role="radio" aria-checked="false" data-mode="fiat-shamir">Fiat–Shamir (non-interactive)</button>
+      </div>
+      <div class="proto-toggle" role="radiogroup" aria-label="Prover honesty">
+        <button class="proto-toggle__btn is-active" type="button" role="radio" aria-checked="true" data-honest="true">Honest prover</button>
+        <button class="proto-toggle__btn" type="button" role="radio" aria-checked="false" data-honest="false">Forged proof</button>
+      </div>
+      <button id="proto-reset" type="button" class="ghost-button proto-reset">New keypair</button>
+    </div>
+
+    <div class="proto-params panel-card">
+      <h3 class="proto-h3">Public parameters &amp; keys</h3>
+      <dl class="proto-kv">
+        <div><dt>Generator <code>g</code></dt><dd class="mono-inline" title="${fullHex(G)}">${shortHex(G)}</dd></div>
+        <div><dt>Prime <code>p</code> (256-bit)</dt><dd class="mono-inline" title="${fullHex(P)}">${shortHex(P)}</dd></div>
+        <div><dt>Public key <code>y = g<sup>x</sup> mod p</code></dt><dd class="mono-inline" id="proto-y" title=""></dd></div>
+        <div class="proto-secret-row">
+          <dt>Secret <code>x</code> <button type="button" class="proto-eye" id="proto-eye" aria-pressed="false">show</button></dt>
+          <dd class="mono-inline" id="proto-x"></dd>
+        </div>
+      </dl>
+    </div>
+
+    <ol class="proto-steps" aria-label="Protocol transcript">
+      <li class="proto-step" data-step="1">
+        <div class="proto-step__head">
+          <span class="proto-step__num">1</span>
+          <div>
+            <h3 class="proto-h3">Commit</h3>
+            <p class="proto-step__sub">Alice picks random <code>r</code> and sends <code>t = g<sup>r</sup> mod p</code>.</p>
+          </div>
+          <button type="button" class="action-button proto-go" data-go="1">Run</button>
+        </div>
+        <div class="proto-step__body">
+          <p class="proto-empty">— waiting —</p>
+        </div>
+      </li>
+      <li class="proto-step" data-step="2">
+        <div class="proto-step__head">
+          <span class="proto-step__num">2</span>
+          <div>
+            <h3 class="proto-h3">Challenge</h3>
+            <p class="proto-step__sub" id="proto-ch-sub">Bob picks a random challenge <code>c</code>.</p>
+          </div>
+          <button type="button" class="action-button proto-go" data-go="2" disabled>Run</button>
+        </div>
+        <div class="proto-step__body">
+          <p class="proto-empty">— waiting —</p>
+        </div>
+      </li>
+      <li class="proto-step" data-step="3">
+        <div class="proto-step__head">
+          <span class="proto-step__num">3</span>
+          <div>
+            <h3 class="proto-h3">Respond</h3>
+            <p class="proto-step__sub">Alice sends <code>s = r + c·x mod q</code>.</p>
+          </div>
+          <button type="button" class="action-button proto-go" data-go="3" disabled>Run</button>
+        </div>
+        <div class="proto-step__body">
+          <p class="proto-empty">— waiting —</p>
+        </div>
+      </li>
+      <li class="proto-step" data-step="4">
+        <div class="proto-step__head">
+          <span class="proto-step__num">4</span>
+          <div>
+            <h3 class="proto-h3">Verify</h3>
+            <p class="proto-step__sub">Bob checks <code>g<sup>s</sup> ?= t · y<sup>c</sup> mod p</code>.</p>
+          </div>
+          <button type="button" class="action-button proto-go" data-go="4" disabled>Run</button>
+        </div>
+        <div class="proto-step__body">
+          <p class="proto-empty">— waiting —</p>
+        </div>
+      </li>
+    </ol>
+
+    <div id="proto-verdict" class="proto-verdict" hidden></div>
+  `;
+
+	const yEl = section.querySelector('#proto-y') as HTMLElement;
+	const xEl = section.querySelector('#proto-x') as HTMLElement;
+	const eyeBtn = section.querySelector('#proto-eye') as HTMLButtonElement;
+	const resetBtn = section.querySelector('#proto-reset') as HTMLButtonElement;
+	const chSub = section.querySelector('#proto-ch-sub') as HTMLElement;
+	const verdict = section.querySelector('#proto-verdict') as HTMLElement;
+	const goBtns = section.querySelectorAll<HTMLButtonElement>('.proto-go');
+	const steps = section.querySelectorAll<HTMLElement>('.proto-step');
+
+	function paintKeys(): void {
+		yEl.textContent = shortHex(keypair.y);
+		yEl.title = fullHex(keypair.y);
+		xEl.textContent = revealSecret ? shortHex(keypair.x) : '••••••••';
+		xEl.title = revealSecret ? fullHex(keypair.x) : 'hidden';
+	}
+
+	function setStepState(step: number, body: string, state: 'pending' | 'done' = 'done'): void {
+		const li = steps[step - 1];
+		const b = li.querySelector('.proto-step__body') as HTMLElement;
+		b.innerHTML = body;
+		li.classList.toggle('is-done', state === 'done');
+		li.classList.toggle('is-pending', state === 'pending');
+	}
+
+	function clearFrom(step: number): void {
+		for (let i = step; i <= 4; i++) {
+			const li = steps[i - 1];
+			li.classList.remove('is-done', 'is-pending');
+			(li.querySelector('.proto-step__body') as HTMLElement).innerHTML =
+				'<p class="proto-empty">— waiting —</p>';
+		}
+		if (step <= progress) progress = step - 1;
+		verdict.hidden = true;
+		updateButtons();
+	}
+
+	function updateButtons(): void {
+		goBtns.forEach((b) => {
+			const n = Number(b.dataset.go);
+			// step 1 is always available (acts as restart);
+			// step N>=2 is enabled iff step N-1 has been completed.
+			const enabled = n === 1 ? true : progress >= n - 1;
+			b.disabled = !enabled;
+		});
+	}
+
+	function fullReset(newKey = false): void {
+		if (newKey) keypair = newKeypair();
+		r = null;
+		proof = null;
+		progress = 0;
+		clearFrom(1);
+		paintKeys();
+		updateButtons();
+	}
+
+	async function runStep(n: number): Promise<void> {
+		if (n === 1) {
+			clearFrom(2);
+			const out = schnorrCommit();
+			r = out.r;
+			proof = { t: out.t, c: 0n, s: 0n };
+			progress = 1;
+			setStepState(
+				1,
+				`<dl class="proto-kv">
+          <div><dt><code>r</code> (secret)</dt><dd class="mono-inline" title="${fullHex(r)}">${shortHex(r)}</dd></div>
+          <div><dt><code>t = g<sup>r</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(out.t)}">${shortHex(out.t)}</dd></div>
+        </dl>`,
+			);
+		} else if (n === 2) {
+			if (proof === null) return;
+			clearFrom(3);
+			let c: bigint;
+			let detail: string;
+			if (mode === 'fiat-shamir') {
+				c = await fiatShamirChallenge(keypair.y, proof.t);
+				detail = `<p class="proto-note">Fiat–Shamir: <code>c = SHA-256(g ‖ p ‖ y ‖ t) mod q</code>. No live verifier needed.</p>`;
+			} else {
+				c = (randBig() % (Q - 1n)) + 1n;
+				detail = `<p class="proto-note">Interactive: Bob samples a fresh random <code>c</code>.</p>`;
+			}
+			proof = { ...proof, c };
+			progress = 2;
+			setStepState(
+				2,
+				`<dl class="proto-kv">
+          <div><dt><code>c</code></dt><dd class="mono-inline" title="${fullHex(c)}">${shortHex(c)}</dd></div>
+        </dl>${detail}`,
+			);
+		} else if (n === 3) {
+			if (proof === null || r === null) return;
+			clearFrom(4);
+			const effectiveX = honest ? keypair.x : (keypair.x + 1n) % Q;
+			const s = schnorrRespond(r, proof.c, effectiveX);
+			proof = { ...proof, s };
+			progress = 3;
+			const note = honest
+				? ''
+				: `<p class="proto-note proto-note--warn">⚠ Using a wrong secret (x+1). The forged response will fail verification.</p>`;
+			setStepState(
+				3,
+				`<dl class="proto-kv">
+          <div><dt><code>s = r + c·x mod q</code></dt><dd class="mono-inline" title="${fullHex(s)}">${shortHex(s)}</dd></div>
+        </dl>${note}`,
+			);
+		} else if (n === 4) {
+			if (proof === null) return;
+			const lhs = modpow(G, proof.s, P);
+			const rhs = (proof.t * modpow(keypair.y, proof.c, P)) % P;
+			const ok = schnorrVerify(keypair.y, proof);
+			progress = 4;
+			setStepState(
+				4,
+				`<dl class="proto-kv">
+          <div><dt><code>g<sup>s</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(lhs)}">${shortHex(lhs)}</dd></div>
+          <div><dt><code>t · y<sup>c</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(rhs)}">${shortHex(rhs)}</dd></div>
+        </dl>`,
+			);
+			verdict.hidden = false;
+			verdict.className = 'proto-verdict ' + (ok ? 'is-ok' : 'is-bad');
+			verdict.innerHTML = ok
+				? `<span class="proto-verdict__mark" aria-hidden="true">✓</span><div><strong>Proof accepted.</strong> Bob is now convinced Alice knows <code>x</code>, having learned nothing about it.</div>`
+				: `<span class="proto-verdict__mark" aria-hidden="true">✗</span><div><strong>Proof rejected.</strong> The two sides do not match — Alice cannot have known the real <code>x</code>.</div>`;
+		}
+		updateButtons();
+	}
+
+	// wire mode toggles
+	section.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) => {
+		b.addEventListener('click', () => {
+			mode = b.dataset.mode as 'interactive' | 'fiat-shamir';
+			section.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((x) => {
+				const on = x === b;
+				x.classList.toggle('is-active', on);
+				x.setAttribute('aria-checked', on ? 'true' : 'false');
+			});
+			chSub.innerHTML =
+				mode === 'fiat-shamir'
+					? `Fiat–Shamir: the challenge becomes <code>c = SHA-256(g ‖ p ‖ y ‖ t)</code> — no live Bob required.`
+					: `Bob picks a random challenge <code>c</code>.`;
+			if (progress >= 2) progress = 1;
+			clearFrom(2);
+			if (proof !== null) proof = { ...proof, c: 0n, s: 0n };
+			updateButtons();
+		});
+	});
+
+	section.querySelectorAll<HTMLButtonElement>('[data-honest]').forEach((b) => {
+		b.addEventListener('click', () => {
+			honest = b.dataset.honest === 'true';
+			section.querySelectorAll<HTMLButtonElement>('[data-honest]').forEach((x) => {
+				const on = x === b;
+				x.classList.toggle('is-active', on);
+				x.setAttribute('aria-checked', on ? 'true' : 'false');
+			});
+			if (progress >= 3) progress = 2;
+			clearFrom(3);
+			if (proof !== null) proof = { ...proof, s: 0n };
+			updateButtons();
+		});
+	});
+
+	goBtns.forEach((b) => {
+		b.addEventListener('click', () => {
+			runStep(Number(b.dataset.go));
+		});
+	});
+
+	eyeBtn.addEventListener('click', () => {
+		revealSecret = !revealSecret;
+		eyeBtn.setAttribute('aria-pressed', revealSecret ? 'true' : 'false');
+		eyeBtn.textContent = revealSecret ? 'hide' : 'show';
+		paintKeys();
+	});
+
+	resetBtn.addEventListener('click', () => fullReset(true));
+
+	paintKeys();
+	updateButtons();
+
+	return section;
+}
+
 // --- use-case recommender --------------------------------------------------
+
 function readHashAnswers(): Record<string, number> {
 	const m = location.hash.match(/[#&]q=([0-9.]+)/i);
 	if (!m) return {};
-	const compact = m[1];
-	const out: Record<string, number> = {};
-	QUESTIONS.forEach((q, i) => {
-		const ch = compact[i];
-		if (!ch || ch === '.') return;
-		const idx = Number(ch);
-		if (Number.isFinite(idx) && idx >= 0 && idx < q.options.length) out[q.id] = idx;
-	});
-	return out;
+	return decodeAnswers(QUESTIONS, m[1]);
 }
 
 function writeHashAnswers(answers: Record<string, number>): void {
-	const compact = QUESTIONS.map((q) =>
-		answers[q.id] !== undefined ? String(answers[q.id]) : '.',
-	).join('');
-	const allEmpty = compact === '.'.repeat(QUESTIONS.length);
-	const url = allEmpty
+	const compact = encodeAnswers(QUESTIONS, answers);
+	const url = isAllEmpty(compact)
 		? location.pathname + location.search
 		: location.pathname + location.search + '#q=' + compact;
 	try {
@@ -778,21 +1080,103 @@ function setupKeyboardLayer(): void {
 	});
 }
 
+// --- sticky scroll-spy nav -------------------------------------------------
+const NAV_ITEMS: { id: string; label: string }[] = [
+	{ id: 'arena', label: 'Arena' },
+	{ id: 'visualizer', label: 'Sizes' },
+	{ id: 'protocol', label: 'Live ZK' },
+	{ id: 'recommender', label: 'Recommend' },
+	{ id: 'systems', label: 'Systems' },
+	{ id: 'timeline', label: 'Milestones' },
+	{ id: 'shared', label: 'Shared' },
+];
+
+function renderNav(): HTMLElement {
+	const nav = el('nav', 'page-nav');
+	nav.setAttribute('aria-label', 'Sections');
+	const links = NAV_ITEMS.map(
+		(n) =>
+			`<a class="page-nav__link" href="#${n.id}" data-target="${n.id}">${n.label}</a>`,
+	).join('');
+	nav.innerHTML = `<div class="page-nav__inner">${links}</div>`;
+	return nav;
+}
+
+function setupScrollSpy(): void {
+	const links = document.querySelectorAll<HTMLAnchorElement>('.page-nav__link');
+	const byId: Record<string, HTMLAnchorElement> = {};
+	links.forEach((l) => (byId[l.dataset.target!] = l));
+	const sections = NAV_ITEMS.map((n) => document.getElementById(n.id)).filter(
+		(x): x is HTMLElement => !!x,
+	);
+	let active = '';
+	const io = new IntersectionObserver(
+		(entries) => {
+			// pick the entry highest in viewport that is intersecting
+			const visible = entries
+				.filter((e) => e.isIntersecting)
+				.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+			if (visible.length === 0) return;
+			const id = visible[0].target.id;
+			if (id === active) return;
+			active = id;
+			links.forEach((l) => l.classList.toggle('is-active', l.dataset.target === id));
+		},
+		{ rootMargin: '-30% 0px -55% 0px', threshold: 0 },
+	);
+	sections.forEach((s) => io.observe(s));
+}
+
+// --- section entry animations ----------------------------------------------
+function setupEntryAnimations(): void {
+	const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	if (prefersReduced) return;
+	const sections = document.querySelectorAll<HTMLElement>(
+		'main .lab-section, .hero-panel, .site-footer',
+	);
+	sections.forEach((s) => s.classList.add('is-pre-enter'));
+	const io = new IntersectionObserver(
+		(entries) => {
+			entries.forEach((e) => {
+				if (e.isIntersecting) {
+					(e.target as HTMLElement).classList.add('is-entered');
+					(e.target as HTMLElement).classList.remove('is-pre-enter');
+					io.unobserve(e.target);
+				}
+			});
+		},
+		{ threshold: 0.05 },
+	);
+	sections.forEach((s) => io.observe(s));
+}
+
 export function mountApp(root: HTMLDivElement): void {
 	const shell = el('div', 'page-shell');
 	const main = el('main');
 	main.id = 'main';
 	main.setAttribute('tabindex', '-1');
-	main.append(
-		renderArena(),
-		renderProofVisualizer(),
-		renderRecommender(),
-		renderSystems(),
-		renderTimeline(),
-		renderShared(),
-	);
-	shell.append(renderHero(), main, renderFooter());
+
+	const arena = renderArena();
+	arena.id = 'arena';
+	const viz = renderProofVisualizer();
+	viz.id = 'visualizer';
+	const protocol = renderProtocol();
+	const recommender = renderRecommender();
+	recommender.id = 'recommender';
+	const systems = renderSystems();
+	systems.id = 'systems';
+	const timeline = renderTimeline();
+	timeline.id = 'timeline';
+	const shared = renderShared();
+	shared.id = 'shared';
+
+	main.append(arena, viz, protocol, recommender, systems, timeline, shared);
+	shell.append(renderHero(), renderNav(), main, renderFooter());
 	root.appendChild(shell);
 	root.appendChild(renderBackToTop());
 	setupKeyboardLayer();
+	requestAnimationFrame(() => {
+		setupScrollSpy();
+		setupEntryAnimations();
+	});
 }

@@ -1,5 +1,9 @@
 # crypto-lab-zk-arena
 
+[![Deploy to GitHub Pages](https://github.com/systemslibrarian/crypto-lab-zk-arena/actions/workflows/deploy.yml/badge.svg)](https://github.com/systemslibrarian/crypto-lab-zk-arena/actions/workflows/deploy.yml)
+[![Live demo](https://img.shields.io/badge/live-demo-0a6f96)](https://systemslibrarian.github.io/crypto-lab-zk-arena/)
+[![No deps](https://img.shields.io/badge/runtime%20deps-0-c68b1a)](./package.json)
+
 ## What It Is
 
 A head-to-head comparison of the two leading families of succinct zero-knowledge proof systems: zk-SNARKs and zk-STARKs. Both let a prover convince a verifier that a statement is true without revealing the secret behind it, and both verify far faster than re-running the computation — but they make opposite engineering tradeoffs. This lab puts them side by side across the dimensions that actually drive a design decision (proof size, verifier and prover cost, trusted setup, post-quantum security, cryptographic assumptions, tooling maturity, and on-chain footprint), then offers an interactive recommender that weights those tradeoffs against your specific use case. The goal is not to crown a winner — neither is strictly better — but to make the tradeoff space legible.
