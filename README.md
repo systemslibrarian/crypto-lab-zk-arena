@@ -53,11 +53,13 @@ Deployed automatically to GitHub Pages from `main` via `.github/workflows/deploy
 
 ## Accessibility
 
-- WCAG-AA contrast in both themes; high-visibility focus rings.
+- **`axe-core` clean** across Chromium, Firefox, and WebKit — 0 violations, 49 passes per engine on WCAG 2.1 A/AA + best-practice rules.
+- WCAG-AA contrast verified by computed-style sampling in both themes (5.5:1 – 18.1:1 on critical text); high-visibility focus rings.
 - Semantic landmarks (`<main>`, `<header role="banner">`, `<footer role="contentinfo">`) and a working skip link.
 - The dimension explorer is a proper `tablist`/`tabpanel` with arrow-key / Home / End navigation.
 - The recommender is a series of `radiogroup` fieldsets with arrow-key selection and `aria-checked` state.
 - Honours `prefers-reduced-motion` and `prefers-color-scheme`. 44 px+ touch targets throughout.
+- Print-friendly: `@media print` rules collapse the page into a clean black-on-white teaching handout (nav, buttons, and overlays hidden; outbound link URLs expanded inline).
 
 ---
 

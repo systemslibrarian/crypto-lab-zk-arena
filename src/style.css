@@ -668,6 +668,121 @@ main:focus {
   }
 }
 
+@media print {
+  :root,
+  [data-theme="dark"] {
+    --ink-strong: #000;
+    --ink: #1a1a1a;
+    --ink-soft: #333;
+    --line: #999;
+    --line-strong: #555;
+    --panel: #fff;
+    --panel-strong: #fff;
+    --accent: #003a55;
+    --accent-2: #6b1717;
+    --accent-3: #6b4a00;
+    --accent-4: #0e5448;
+    --shadow: none;
+    --shadow-soft: none;
+    --surface-bg: #fff;
+    --input-bg: #fff;
+    --mono-block-bg: #f4f0e6;
+    --mono-block-fg: #1a1a1a;
+    --metric-bg: #fff;
+    --metric-fg: #000;
+    --metric-muted: #333;
+    --warning-bg: #f9efef;
+    --warning-fg: #6b1717;
+    --warning-border: #6b1717;
+    background: #fff !important;
+  }
+
+  body, html { background: #fff !important; color: #000 !important; }
+
+  /* hide things that make no sense in print */
+  .page-nav,
+  .theme-toggle,
+  .back-to-top,
+  .kbd-overlay,
+  .quiz-actions,
+  .proto-go,
+  .proto-mode-row,
+  .proto-eye,
+  #viz-controls,
+  .viz-controls,
+  details summary::-webkit-details-marker {
+    display: none !important;
+  }
+
+  details > * {
+    display: block !important;
+  }
+
+  details summary {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .hero-panel, .lab-section, .panel-card, .scenario-card {
+    background: #fff !important;
+    box-shadow: none !important;
+    border: 1px solid #999 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    backdrop-filter: none !important;
+  }
+
+  .hero-panel h1 {
+    font-size: 42pt;
+    color: #000 !important;
+  }
+
+  .lab-section h2 {
+    font-size: 22pt;
+    color: #000 !important;
+  }
+
+  .lab-section {
+    page-break-before: auto;
+  }
+
+  a {
+    color: #003a55 !important;
+    text-decoration: underline;
+  }
+
+  /* show outbound URLs after links so a printed copy stays useful */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    color: #555;
+    word-break: break-all;
+  }
+
+  .vs-chip, .timeline-year, .viz-size, .proto-timing {
+    border: 1px solid #333 !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  .timeline-scroll {
+    overflow: visible !important;
+  }
+
+  .timeline-rail {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 12pt !important;
+  }
+
+  .timeline-card {
+    flex: none !important;
+    max-width: none !important;
+  }
+}
+
 @media (max-width: 640px) {
   .page-shell {
     width: min(1180px, calc(100% - 20px));

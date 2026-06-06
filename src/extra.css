@@ -1009,6 +1009,36 @@ kbd {
   line-height: 1.55;
 }
 
+.proto-meta {
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.proto-timing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent-4) 18%, var(--panel));
+  border: 1px solid color-mix(in oklab, var(--accent-4) 40%, transparent);
+  color: var(--accent-4);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.proto-timing__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-4);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-4) 24%, transparent);
+}
+
 .proto-note--warn {
   color: var(--warning-fg);
   background: var(--warning-bg);

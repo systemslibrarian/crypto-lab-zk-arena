@@ -89,7 +89,7 @@ function renderHero(): HTMLElement {
         </p>
       </details>
     </div>
-    <aside class="hero-metric-card" aria-label="Dimension scorecard summary">
+    <div class="hero-metric-card" role="group" aria-label="Dimension scorecard summary">
       <p class="hero-metric-label">Dimension scorecard</p>
       <dl class="hero-metric-list">
         <div><dt>SNARK favoured</dt><dd>${snarkWins}</dd></div>
@@ -97,7 +97,7 @@ function renderHero(): HTMLElement {
         <div><dt>Ties</dt><dd>${ties}</dd></div>
       </dl>
       <p class="hero-metric-note">Across ${DIMENSIONS.length} practical dimensions · "better" depends on your use case</p>
-    </aside>
+    </div>
   `;
 	return hero;
 }
@@ -511,10 +511,17 @@ function renderProtocol(): HTMLElement {
 		updateButtons();
 	}
 
+	function timing(ms: number): string {
+		const formatted = ms < 1 ? ms.toFixed(2) : ms < 10 ? ms.toFixed(2) : ms.toFixed(1);
+		return `<span class="proto-timing" title="Time elapsed in this browser"><span class="proto-timing__dot" aria-hidden="true"></span>${formatted} ms</span>`;
+	}
+
 	async function runStep(n: number): Promise<void> {
 		if (n === 1) {
 			clearFrom(2);
+			const t0 = performance.now();
 			const out = schnorrCommit();
+			const dt = performance.now() - t0;
 			r = out.r;
 			proof = { t: out.t, c: 0n, s: 0n };
 			progress = 1;
@@ -523,56 +530,62 @@ function renderProtocol(): HTMLElement {
 				`<dl class="proto-kv">
           <div><dt><code>r</code> (secret)</dt><dd class="mono-inline" title="${fullHex(r)}">${shortHex(r)}</dd></div>
           <div><dt><code>t = g<sup>r</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(out.t)}">${shortHex(out.t)}</dd></div>
-        </dl>`,
+        </dl><p class="proto-meta">${timing(dt)} — one 256-bit modular exponentiation.</p>`,
 			);
 		} else if (n === 2) {
 			if (proof === null) return;
 			clearFrom(3);
 			let c: bigint;
 			let detail: string;
+			const t0 = performance.now();
 			if (mode === 'fiat-shamir') {
 				c = await fiatShamirChallenge(keypair.y, proof.t);
-				detail = `<p class="proto-note">Fiat–Shamir: <code>c = SHA-256(g ‖ p ‖ y ‖ t) mod q</code>. No live verifier needed.</p>`;
+				detail = `Fiat–Shamir: <code>c = SHA-256(g ‖ p ‖ y ‖ t) mod q</code>. No live verifier needed.`;
 			} else {
 				c = (randBig() % (Q - 1n)) + 1n;
-				detail = `<p class="proto-note">Interactive: Bob samples a fresh random <code>c</code>.</p>`;
+				detail = `Interactive: Bob samples a fresh random <code>c</code>.`;
 			}
+			const dt = performance.now() - t0;
 			proof = { ...proof, c };
 			progress = 2;
 			setStepState(
 				2,
 				`<dl class="proto-kv">
           <div><dt><code>c</code></dt><dd class="mono-inline" title="${fullHex(c)}">${shortHex(c)}</dd></div>
-        </dl>${detail}`,
+        </dl><p class="proto-meta">${timing(dt)} — ${detail}</p>`,
 			);
 		} else if (n === 3) {
 			if (proof === null || r === null) return;
 			clearFrom(4);
 			const effectiveX = honest ? keypair.x : (keypair.x + 1n) % Q;
+			const t0 = performance.now();
 			const s = schnorrRespond(r, proof.c, effectiveX);
+			const dt = performance.now() - t0;
 			proof = { ...proof, s };
 			progress = 3;
-			const note = honest
+			const warn = honest
 				? ''
 				: `<p class="proto-note proto-note--warn">⚠ Using a wrong secret (x+1). The forged response will fail verification.</p>`;
 			setStepState(
 				3,
 				`<dl class="proto-kv">
           <div><dt><code>s = r + c·x mod q</code></dt><dd class="mono-inline" title="${fullHex(s)}">${shortHex(s)}</dd></div>
-        </dl>${note}`,
+        </dl><p class="proto-meta">${timing(dt)} — one multiply + one add mod q.</p>${warn}`,
 			);
 		} else if (n === 4) {
 			if (proof === null) return;
+			const t0 = performance.now();
 			const lhs = modpow(G, proof.s, P);
 			const rhs = (proof.t * modpow(keypair.y, proof.c, P)) % P;
 			const ok = schnorrVerify(keypair.y, proof);
+			const dt = performance.now() - t0;
 			progress = 4;
 			setStepState(
 				4,
 				`<dl class="proto-kv">
           <div><dt><code>g<sup>s</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(lhs)}">${shortHex(lhs)}</dd></div>
           <div><dt><code>t · y<sup>c</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(rhs)}">${shortHex(rhs)}</dd></div>
-        </dl>`,
+        </dl><p class="proto-meta">${timing(dt)} — two 256-bit modular exponentiations and a multiply.</p>`,
 			);
 			verdict.hidden = false;
 			verdict.className = 'proto-verdict ' + (ok ? 'is-ok' : 'is-bad');
