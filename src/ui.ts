@@ -59,8 +59,12 @@ function winnerChip(w: Winner): string {
 }
 
 function renderHero(): HTMLElement {
-	const hero = el('header', 'hero-panel');
-	hero.setAttribute('role', 'banner');
+	// The shared crypto-lab header is the page's single banner landmark. Render
+	// the demo hero as a labeled <section> (a region landmark) so its content
+	// stays inside a landmark without creating a duplicate banner (axe
+	// landmark-no-duplicate-banner / region).
+	const hero = el('section', 'hero-panel');
+	hero.setAttribute('aria-label', 'zk-Arena overview');
 	const snarkWins = DIMENSIONS.filter((d) => d.winner === 'snark').length;
 	const starkWins = DIMENSIONS.filter((d) => d.winner === 'stark').length;
 	const ties = DIMENSIONS.length - snarkWins - starkWins;

@@ -11,7 +11,10 @@ const DIST = path.join(__dirname, '..', 'dist');
 const BUDGETS = {
 	js: 16 * 1024,
 	css: 8 * 1024,
-	html: 2 * 1024,
+	// Raised from 2 KB: the mandated shared crypto-lab header (self-contained
+	// inline styles + markup) is ~2.5 KB gz on its own, so 2 KB is no longer
+	// achievable. 6 KB keeps a meaningful ceiling with headroom for content.
+	html: 6 * 1024,
 };
 
 function fmt(n) {
