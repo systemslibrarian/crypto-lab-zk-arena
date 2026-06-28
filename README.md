@@ -19,10 +19,11 @@ A head-to-head comparison of the two leading families of succinct zero-knowledge
 - **Explaining post-quantum implications** — see why pairing-based SNARKs break under quantum attack while hash-based STARKs plausibly survive.
 - **Understanding trusted setup** — clarify what a setup ceremony is, why it is a risk, and which systems avoid it.
 - **Do NOT treat the figures as exact** — they are representative orders of magnitude; real numbers depend heavily on circuit, curve, field, and parameters.
+- **Do NOT** use the recommender as a substitute for a real security review — it is a teaching demo, not production guidance.
 
 ## Live Demo
 
-[**https://systemslibrarian.github.io/crypto-lab-zk-arena/**](https://systemslibrarian.github.io/crypto-lab-zk-arena/)
+**[systemslibrarian.github.io/crypto-lab-zk-arena](https://systemslibrarian.github.io/crypto-lab-zk-arena/)**
 
 The Arena lets you click any comparison dimension to see both systems' values side by side, which one it favours, and a one-line explanation. The Pick Your Use Case recommender asks about quantum security, trusted setup tolerance, proof-size sensitivity, computation scale, and ecosystem maturity, then renders a weighted SNARK-vs-STARK recommendation bar. Below that, cards cover real systems (Groth16, PLONK, Halo2, FRI-based STARKs, Plonky2) showing how the labels blur in practice, and a Common Ground section covers what both systems share — including the subtlety that a STARK is not always zero-knowledge.
 
@@ -41,6 +42,23 @@ The Arena lets you click any comparison dimension to see both systems' values si
 - **STARK-based scaling** — FRI-based systems and recursive variants like Plonky2 target high-throughput proving for large computations.
 - **PLONK and universal setups** — widely adopted because one universal setup can be reused across many circuits, easing the per-circuit ceremony burden of earlier SNARKs.
 - **Post-quantum roadmaps** — STARKs are frequently cited as the zero-knowledge option most likely to remain secure in a post-quantum world.
+
+## How to Run Locally
+
+```bash
+git clone https://github.com/systemslibrarian/crypto-lab-zk-arena
+cd crypto-lab-zk-arena
+npm install
+npm run dev
+```
+
+## Related Demos
+
+- [crypto-lab-snark-arena](https://systemslibrarian.github.io/crypto-lab-snark-arena/) — compares zk-SNARK constructions (Groth16, PLONK) and their trusted-setup tradeoffs.
+- [crypto-lab-stark-tower](https://systemslibrarian.github.io/crypto-lab-stark-tower/) — transparent, post-quantum zk-STARKs built on AIR constraints and FRI.
+- [crypto-lab-bulletproofs](https://systemslibrarian.github.io/crypto-lab-bulletproofs/) — short range proofs with no trusted setup via the inner-product argument.
+- [crypto-lab-zk-proof-lab](https://systemslibrarian.github.io/crypto-lab-zk-proof-lab/) — interactive Schnorr, commit-reveal, and Fiat-Shamir protocol walkthroughs.
+- [crypto-lab-commit-gate](https://systemslibrarian.github.io/crypto-lab-commit-gate/) — hash and Pedersen commitments demonstrating binding and hiding.
 
 ## Tech
 
@@ -83,4 +101,6 @@ Run locally against the preview build:
 
 ---
 
-"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31
+*One of 60+ browser demos in the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite.*
+
+*"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31*
