@@ -1012,6 +1012,18 @@ function renderFooter(): HTMLElement {
       <span aria-hidden="true"> · </span>
       <span>© ${year} systemslibrarian</span>
     </p>
+    <p class="footer-meta">
+      Related demos:
+      <a href="https://systemslibrarian.github.io/crypto-lab-snark-arena/" rel="noopener" class="footer-link">crypto-lab-snark-arena</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://systemslibrarian.github.io/crypto-lab-stark-tower/" rel="noopener" class="footer-link">crypto-lab-stark-tower</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://systemslibrarian.github.io/crypto-lab-bulletproofs/" rel="noopener" class="footer-link">crypto-lab-bulletproofs</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://systemslibrarian.github.io/crypto-lab-zk-proof-lab/" rel="noopener" class="footer-link">crypto-lab-zk-proof-lab</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://systemslibrarian.github.io/crypto-lab-commit-gate/" rel="noopener" class="footer-link">crypto-lab-commit-gate</a>
+    </p>
     <p class="scripture">“So whether you eat or drink or whatever you do, do it all for the glory of God.” — 1 Corinthians 10:31</p>
   `;
 	return footer;
