@@ -59,48 +59,33 @@ function winnerChip(w: Winner): string {
 }
 
 function renderHero(): HTMLElement {
-	// The shared crypto-lab header is the page's single banner landmark. Render
-	// the demo hero as a labeled <section> (a region landmark) so its content
-	// stays inside a landmark without creating a duplicate banner (axe
-	// landmark-no-duplicate-banner / region).
-	const hero = el('section', 'hero-panel');
+	// Fleet cl-hero standard. Rendered as a labeled <section> (a region landmark)
+	// rather than a <header> so it does not create a second banner alongside the
+	// shared crypto-lab topbar (axe landmark-no-duplicate-banner). The hidden
+	// #theme-toggle button stays in the DOM so main.ts's theme wiring keeps
+	// working (the shared topbar toggle replaces it visually).
+	const hero = el('section', 'cl-hero');
 	hero.setAttribute('aria-label', 'zk-Arena overview');
-	const snarkWins = DIMENSIONS.filter((d) => d.winner === 'snark').length;
-	const starkWins = DIMENSIONS.filter((d) => d.winner === 'stark').length;
-	const ties = DIMENSIONS.length - snarkWins - starkWins;
 	hero.innerHTML = `
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false">
       <span class="theme-toggle__icon" aria-hidden="true">\u{1F319}</span>
     </button>
-    <div class="hero-copy">
-      <a class="portfolio-badge" href="https://github.com/systemslibrarian?tab=repositories&q=crypto-lab" rel="noopener">
-        <span aria-hidden="true">← </span>crypto-lab · portfolio
-      </a>
-      <p class="eyebrow">Zero-Knowledge</p>
-      <h1>zk-Arena</h1>
-      <p class="hero-text">
-        zk-SNARKs and zk-STARKs both let a prover convince a verifier that a statement is true
-        without revealing why — but they make opposite tradeoffs. This lab puts them head to
-        head across proof size, trusted setup, post-quantum security, prover scalability, and
-        more, then helps you pick the right one for a given use case.
+    <div class="cl-hero-main">
+      <h1 class="cl-hero-title">zk-Arena</h1>
+      <p class="cl-hero-sub">zk-SNARK vs zk-STARK · Schnorr Σ-protocol</p>
+      <p class="cl-hero-desc">
+        Put the two dominant succinct proof families head to head across proof size, trusted
+        setup, post-quantum security, and prover cost, then run a live Schnorr sigma-protocol
+        that shows how zero-knowledge actually works.
       </p>
-      <details class="why-details">
-        <summary>SNARK vs STARK in one line</summary>
-        <p>
-          SNARKs give tiny proofs but usually need a trusted setup and break under quantum
-          attack. STARKs are transparent and plausibly post-quantum, but their proofs are far
-          larger. Neither is strictly better — it depends on what you are optimising for.
-        </p>
-      </details>
     </div>
-    <div class="hero-metric-card" role="group" aria-label="Dimension scorecard summary">
-      <p class="hero-metric-label">Dimension scorecard</p>
-      <dl class="hero-metric-list">
-        <div><dt>SNARK favoured</dt><dd>${snarkWins}</dd></div>
-        <div><dt>STARK favoured</dt><dd>${starkWins}</dd></div>
-        <div><dt>Ties</dt><dd>${ties}</dd></div>
-      </dl>
-      <p class="hero-metric-note">Across ${DIMENSIONS.length} practical dimensions · "better" depends on your use case</p>
+    <div class="cl-hero-why" role="group" aria-label="Why it matters">
+      <span class="cl-hero-why-label">WHY IT MATTERS</span>
+      <p class="cl-hero-why-text">
+        SNARKs and STARKs sit behind rollups and private ledgers, and the choice locks in
+        real costs: a trusted-setup ceremony you must trust forever, on-chain fees that scale
+        with proof size, and whether your system survives a future quantum adversary.
+      </p>
     </div>
   `;
 	return hero;
@@ -1230,7 +1215,7 @@ function setupEntryAnimations(): void {
 	const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	if (prefersReduced) return;
 	const sections = document.querySelectorAll<HTMLElement>(
-		'main .lab-section, .hero-panel, .site-footer',
+		'main .lab-section, .cl-hero, .site-footer',
 	);
 	sections.forEach((s) => s.classList.add('is-pre-enter'));
 	const io = new IntersectionObserver(

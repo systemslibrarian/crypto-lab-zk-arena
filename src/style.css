@@ -204,7 +204,6 @@ main:focus {
   padding: clamp(20px, 4vw, 32px) 0 clamp(48px, 8vw, 96px);
 }
 
-.hero-panel,
 .lab-section,
 .panel-card,
 .scenario-card,
@@ -214,68 +213,20 @@ main:focus {
   -webkit-backdrop-filter: blur(16px);
 }
 
-.hero-panel {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr);
-  gap: 22px;
-  padding: clamp(22px, 4vw, 36px);
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
-}
+/* BEGIN cl-hero standard — managed, keep in sync across fleet.
+   Accent/tint/text/border mapped to this lab's theme vars:
+   --accent, --ink (text), --ink-soft (--text-dim), --line (--border). */
+.cl-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:clamp(1rem,4vw,3rem);flex-wrap:wrap;margin:clamp(1rem,3vw,2rem) 0 1.5rem;}
+.cl-hero-main{flex:1 1 22rem;min-width:min(100%,20rem);}
+.cl-hero-title{margin:0;font-size:clamp(1.6rem,3.8vw,2.7rem);font-weight:700;line-height:1.1;letter-spacing:.01em;color:var(--ink-strong);}
+.cl-hero-sub{margin:.4rem 0 0;font-size:clamp(.9rem,1.6vw,1.05rem);letter-spacing:.01em;opacity:.85;color:var(--ink);}
+.cl-hero-desc{margin:.55rem 0 0;font-size:1rem;line-height:1.5;color:var(--ink-soft);max-width:60ch;}
+.cl-hero-why{flex:0 1 min(40%,26rem);min-width:min(100%,15rem);border:1px solid var(--line);border-radius:10px;padding:.85rem 1.05rem;background:color-mix(in oklab,var(--accent) 6%,transparent);}
+.cl-hero-why-label{display:block;font-size:.68rem;font-weight:700;letter-spacing:.14em;color:var(--accent);}
+.cl-hero-why-text{margin:.35rem 0 0;font-size:.95rem;line-height:1.5;color:var(--ink);}
+@media (max-width:640px){.cl-hero{flex-direction:column;}.cl-hero-why{flex-basis:auto;width:100%;}}
+/* END cl-hero standard */
 
-.hero-copy {
-  display: grid;
-  gap: 14px;
-  min-width: 0;
-}
-
-.portfolio-badge {
-  width: fit-content;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--accent) 14%, transparent);
-  color: var(--accent);
-  font-family: var(--mono);
-  font-size: 0.84rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: background 160ms ease, transform 160ms ease;
-}
-
-.portfolio-badge:hover {
-  background: color-mix(in oklab, var(--accent) 22%, transparent);
-  transform: translateY(-1px);
-}
-
-.eyebrow {
-  margin: 0;
-  color: var(--accent);
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.hero-panel h1 {
-  margin: 0;
-  font-size: clamp(2.4rem, 6.5vw, 5rem);
-  line-height: 0.95;
-  letter-spacing: -0.02em;
-  color: var(--ink-strong);
-}
-
-.hero-text {
-  max-width: 64ch;
-  margin: 0;
-  color: var(--ink-soft);
-  line-height: 1.65;
-  font-size: clamp(0.98rem, 1.4vw, 1.05rem);
-}
-
-.why-details,
 .explanation-details {
   padding: 14px 18px;
   border: 1px solid var(--line);
@@ -283,7 +234,6 @@ main:focus {
   background: var(--panel);
 }
 
-.why-details summary,
 .explanation-details summary {
   cursor: pointer;
   color: var(--ink-strong);
@@ -293,22 +243,10 @@ main:focus {
   display: list-item;
 }
 
-.why-details p,
 .explanation-details p {
   margin: 12px 0 0;
   line-height: 1.6;
   color: var(--ink-soft);
-}
-
-.hero-metric-card {
-  display: grid;
-  gap: 14px;
-  align-content: start;
-  padding: clamp(20px, 3vw, 26px);
-  border-radius: 24px;
-  background: var(--metric-bg);
-  color: var(--metric-fg);
-  box-shadow: var(--shadow-soft);
 }
 
 .hero-metric-label {
@@ -318,47 +256,6 @@ main:focus {
   text-transform: uppercase;
   color: var(--metric-muted);
   font-weight: 600;
-}
-
-.hero-metric-list {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  font-family: var(--mono);
-}
-
-.hero-metric-list > div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(250, 243, 236, 0.14);
-}
-
-.hero-metric-list > div:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-
-.hero-metric-list dt {
-  margin: 0;
-  font-size: 0.88rem;
-  color: var(--metric-muted);
-}
-
-.hero-metric-list dd {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--metric-fg);
-}
-
-.hero-metric-note {
-  margin: 0;
-  color: var(--metric-muted);
-  line-height: 1.55;
-  font-size: 0.88rem;
 }
 
 .lab-section {
@@ -659,10 +556,6 @@ main:focus {
 }
 
 @media (max-width: 960px) {
-  .hero-panel {
-    grid-template-columns: 1fr;
-  }
-
   .panel-card--wide {
     grid-column: auto;
   }
@@ -724,7 +617,7 @@ main:focus {
     margin-bottom: 6px;
   }
 
-  .hero-panel, .lab-section, .panel-card, .scenario-card {
+  .lab-section, .panel-card, .scenario-card {
     background: #fff !important;
     box-shadow: none !important;
     border: 1px solid #999 !important;
@@ -733,7 +626,7 @@ main:focus {
     backdrop-filter: none !important;
   }
 
-  .hero-panel h1 {
+  .cl-hero-title {
     font-size: 42pt;
     color: #000 !important;
   }
@@ -789,7 +682,6 @@ main:focus {
     padding: 18px 0 56px;
   }
 
-  .hero-panel,
   .lab-section,
   .panel-card,
   .scenario-card,
@@ -802,10 +694,6 @@ main:focus {
   .panel-header,
   .warning-banner {
     flex-direction: column;
-  }
-
-  .hero-panel h1 {
-    font-size: clamp(2.2rem, 10vw, 3.4rem);
   }
 
   .math-summary-grid {

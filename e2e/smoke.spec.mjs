@@ -11,12 +11,12 @@ test.beforeEach(async ({ page }) => {
 		}
 	});
 	await page.goto('/', { waitUntil: 'networkidle' });
-	await page.waitForSelector('.hero-panel');
+	await page.waitForSelector('.cl-hero');
 });
 
-test('hero renders with scorecard', async ({ page }) => {
-	await expect(page.locator('.hero-panel h1')).toHaveText('zk-Arena');
-	await expect(page.locator('.hero-metric-card dd').first()).toHaveText(/\d+/);
+test('hero renders with title and why-it-matters box', async ({ page }) => {
+	await expect(page.locator('.cl-hero-title')).toHaveText('zk-Arena');
+	await expect(page.locator('.cl-hero-why[aria-label="Why it matters"]')).toBeVisible();
 });
 
 test('Arena tab list is keyboard navigable', async ({ page }) => {
