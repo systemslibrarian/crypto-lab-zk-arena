@@ -9,7 +9,11 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, '..', 'dist');
 
 const BUDGETS = {
-	js: 16 * 1024,
+	// Raised from 16 KB: added the plain-language primer, first-use glossary, and
+	// a full interactive trusted-setup exhibit (a real Pedersen-commitment
+	// ceremony with a runnable toxic-waste forgery). That is genuine teaching
+	// surface, not bloat; 20 KB keeps a firm ceiling with modest headroom.
+	js: 20 * 1024,
 	css: 8 * 1024,
 	// Raised from 2 KB: the mandated shared crypto-lab header (self-contained
 	// inline styles + markup) is ~2.5 KB gz on its own, so 2 KB is no longer

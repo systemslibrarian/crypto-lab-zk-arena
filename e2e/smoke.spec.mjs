@@ -75,6 +75,26 @@ test('Fiat-Shamir mode also verifies', async ({ page }) => {
 	await expect(page.locator('.proto-verdict.is-ok')).toBeVisible();
 });
 
+test('Trusted setup: kept toxic waste forges an accepted false opening', async ({ page }) => {
+	const setup = page.locator('#setup');
+	await setup.locator('[data-waste="keep"]').click();
+	for (let n = 1; n <= 4; n++) {
+		await setup.locator(`.proto-go[data-setup-go="${n}"]`).click();
+	}
+	// keeping τ must let the false claim be ACCEPTED (a forged proof) -> is-bad
+	await expect(page.locator('#setup-verdict.is-bad')).toBeVisible();
+});
+
+test('Trusted setup: destroyed toxic waste rejects the false opening', async ({ page }) => {
+	const setup = page.locator('#setup');
+	// destroy is the default, but click to be explicit
+	await setup.locator('[data-waste="destroy"]').click();
+	for (let n = 1; n <= 4; n++) {
+		await setup.locator(`.proto-go[data-setup-go="${n}"]`).click();
+	}
+	await expect(page.locator('#setup-verdict.is-ok')).toBeVisible();
+});
+
 test('Recommender writes answers to URL hash', async ({ page }) => {
 	const firstOpts = page.locator('.quiz-opt[data-i="0"]');
 	const count = await firstOpts.count();
@@ -95,12 +115,12 @@ test('New keypair resets the protocol to a runnable state', async ({ page }) => 
 	// after reset: step 1 should be enabled, others disabled, no verdict
 	await expect(page.locator('.proto-go[data-go="1"]')).toBeEnabled();
 	await expect(page.locator('.proto-go[data-go="2"]')).toBeDisabled();
-	await expect(page.locator('.proto-verdict')).toBeHidden();
+	await expect(page.locator('#proto-verdict')).toBeHidden();
 	// re-run from scratch
 	for (let n = 1; n <= 4; n++) {
 		await page.locator(`.proto-go[data-go="${n}"]`).click();
 	}
-	await expect(page.locator('.proto-verdict.is-ok')).toBeVisible();
+	await expect(page.locator('#proto-verdict.is-ok')).toBeVisible();
 });
 
 test('Shared URL hash restores the recommender state on reload', async ({ page }) => {

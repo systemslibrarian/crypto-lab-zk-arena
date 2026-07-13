@@ -10,7 +10,17 @@
 
 ## What It Is
 
-A head-to-head comparison of the two leading families of succinct zero-knowledge proof systems: zk-SNARKs and zk-STARKs. Both let a prover convince a verifier that a statement is true without revealing the secret behind it, and both verify far faster than re-running the computation — but they make opposite engineering tradeoffs. This lab puts them side by side across the dimensions that actually drive a design decision (proof size, verifier and prover cost, trusted setup, post-quantum security, cryptographic assumptions, tooling maturity, and on-chain footprint), then offers an interactive recommender that weights those tradeoffs against your specific use case. The goal is not to crown a winner — neither is strictly better — but to make the tradeoff space legible.
+A head-to-head comparison of the two leading families of succinct zero-knowledge proof systems: zk-SNARKs and zk-STARKs. Both let a prover convince a verifier that a statement is true without revealing the secret behind it, and both verify far faster than re-running the computation — but they make opposite engineering tradeoffs. The lab opens with a plain-language primer that defines the four load-bearing terms (proof size, prover, verifier, trusted setup) before any comparison begins, then puts the two families side by side across the dimensions that actually drive a design decision (proof size, verifier and prover cost, trusted setup, post-quantum security, cryptographic assumptions, tooling maturity, and on-chain footprint). Two hands-on exhibits make the abstractions concrete: a runnable Schnorr sigma-protocol that shows what zero-knowledge and soundness actually feel like (with an honest-vs-forged toggle), and a real trusted-setup ceremony where keeping the "toxic waste" lets you forge an accepting proof of a false statement — the SNARK backdoor made experiential. An interactive recommender then weights the tradeoffs against your specific use case. The goal is not to crown a winner — neither is strictly better — but to make the tradeoff space legible, with a clear on-ramp for a newcomer and enough depth for a specialist.
+
+## Exhibits
+
+1. **Primer — "What even is a SNARK or a STARK?"** — plainly defines proof size, prover, verifier, and trusted setup, plus a numbered "start here" reading path so a newcomer never lands mid-page in the deep end.
+2. **The Arena** — click any of eight comparison dimensions to see both families' values, who it favours, and why; full keyboard tablist navigation.
+3. **Proof Sizes, To Scale** — both proofs drawn dot-for-dot at one shared byte scale, with an explicit ratio caption ("showing X KB of a Y KB proof… the SNARK is these N dots") so the size gap is unmistakable.
+4. **Run a Zero-Knowledge Proof** — a live, in-browser Schnorr identification protocol (interactive and Fiat–Shamir modes) with an honest-vs-forged toggle that flips soundness on demand. Framed honestly: this teaches the *idea*, not SNARK succinctness.
+5. **Break a Trusted Setup** — a real Pedersen-commitment ceremony; destroy the toxic waste τ and a false claim is rejected, keep it and the same commitment forges an accepted opening to a value it never held.
+6. **Pick Your Use Case** — a weighted recommender whose answers are shareable via the URL.
+7. **Real Systems, Milestones, and What They Share** — Groth16, PLONK, Halo2, FRI-based STARKs, Plonky2, a short history, and common ground, with first-use glossary popovers for FRI, Merkle paths, pairings, IPA, and recursion.
 
 ## When to Use It
 
@@ -62,7 +72,7 @@ npm run dev
 
 ## Tech
 
-Vite + TypeScript, zero runtime dependencies. The comparison corpus and recommender weights live in `src/data.ts`; the arena and quiz UI are plain DOM in `src/ui.ts`. Dark mode by default with a persisted theme toggle that respects `prefers-color-scheme`.
+Vite + TypeScript, zero runtime dependencies. The comparison corpus and recommender weights live in `src/data.ts`; the arena and quiz UI are plain DOM in `src/ui.ts`. The two live-crypto exhibits are real, spec-accurate, and unit-tested: the Schnorr sigma-protocol in `src/schnorr.ts` and the trusted-setup Pedersen-commitment ceremony (with the toxic-waste equivocation) in `src/trustedsetup.ts`. Dark mode by default with a persisted theme toggle that respects `prefers-color-scheme`.
 
 ```bash
 npm install
@@ -72,7 +82,7 @@ npm run preview  # serve the production build locally
 ```
 
 Deployed automatically to GitHub Pages from `main` via `.github/workflows/deploy.yml`. Every push is gated on:
-unit tests → `tsc && vite build` → bundle-size budget (16 KB JS gz / 8 KB CSS gz) → Playwright E2E + axe-core a11y on Chromium → deploy.
+unit tests → `tsc && vite build` → bundle-size budget (20 KB JS gz / 8 KB CSS gz) → Playwright E2E + axe-core a11y on Chromium → deploy.
 
 <a id="audited"></a>
 ## Audited
@@ -86,8 +96,8 @@ Run locally against the preview build:
 | **Lighthouse Best Practices** | **100** |
 | **Lighthouse SEO** | **100** |
 | **axe-core** (Chromium, Firefox, WebKit) | 0 violations across 49 passes per engine |
-| **Vitest** | 18 / 18 passing |
-| **Playwright E2E** | 11 / 11 passing |
+| **Vitest** | 25 / 25 passing |
+| **Playwright E2E** | 16 / 16 passing |
 
 ## Accessibility
 

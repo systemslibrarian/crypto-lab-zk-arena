@@ -25,6 +25,14 @@ import {
 	type Keypair,
 	type Proof,
 } from './schnorr.ts';
+import {
+	commitValue,
+	forgeOpening,
+	runCeremony,
+	verifyOpening,
+	type Commitment,
+	type Crs,
+} from './trustedsetup.ts';
 
 function el<K extends keyof HTMLElementTagNameMap>(
 	tag: K,
@@ -43,6 +51,52 @@ function escapeHtml(s: string): string {
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;');
+}
+
+// First-use glossary. Each term is the actual mechanism behind a tradeoff the
+// demo compares, so a one-line "why it matters" travels with the definition.
+// Rendered as a keyboard-focusable inline term with a hover/focus popover and
+// an aria-label so assistive tech reads the full definition.
+const GLOSSARY: Record<string, string> = {
+	fri: 'FRI (Fast Reed–Solomon IOP of Proximity): a hash-based test that a committed polynomial has low degree. It gives STARKs their transparency (no trusted setup) but makes proofs larger — the source of the STARK size penalty.',
+	merkle: 'Merkle authentication path: the list of sibling hashes proving one leaf belongs to a hash tree with a known root. STARK proofs are mostly these paths, which is why their size grows with the computation.',
+	pairing: 'Pairing: a special bilinear map on an elliptic curve, e(g^a, g^b) = e(g,g)^{ab}. It lets a SNARK verifier check a relation in a tiny constant-size proof — but pairings break under a quantum computer, so pairing-based SNARKs are not post-quantum.',
+	ipa: 'IPA (inner-product argument): a way to prove an inner product relation without a pairing or a trusted setup (used by Halo2, Bulletproofs). It removes the ceremony at the cost of slower, logarithmic-size verification.',
+	recursion: 'Recursive composition: a proof that verifies another proof. It lets systems compress an unbounded computation into one small final proof — the trick behind rollups and Plonky2.',
+	pcp: 'PCP theorem (1992): proved that any NP statement has a proof you can be convinced of by spot-checking a few random bits. Every modern succinct proof is a practical descendant of this idea.',
+	gas: 'Gas: Ethereum charges a fee ("gas") for every byte of data a transaction stores on-chain — roughly 16 gas per byte. A bigger proof costs proportionally more gas to post, which is why proof size directly drives on-chain cost.',
+};
+
+function gloss(term: keyof typeof GLOSSARY | string, display: string): string {
+	const def = GLOSSARY[term as string];
+	if (!def) return escapeHtml(display);
+	return `<span class="gloss" tabindex="0" role="note" aria-label="${escapeHtml(def)}">${escapeHtml(display)}<span class="gloss__pop" aria-hidden="true">${escapeHtml(def)}</span></span>`;
+}
+
+// Escape a plain-text string, then wrap the FIRST occurrence of each known
+// jargon term in a glossary popover. Matching is on the escaped text so we
+// never break markup; only whole-word, first-use hits are decorated.
+const GLOSS_PATTERNS: { key: keyof typeof GLOSSARY; re: RegExp }[] = [
+	{ key: 'fri', re: /\bFRI\b/ },
+	{ key: 'merkle', re: /\bMerkle(?: authentication)?(?: paths?)?\b/ },
+	{ key: 'pairing', re: /\bpairing(?:-based|s)?\b/i },
+	{ key: 'ipa', re: /\binner-product arguments?\b/i },
+	{ key: 'recursion', re: /\brecursive(?:ly)?(?: composition)?\b/i },
+	{ key: 'pcp', re: /\bprobabilistically checkable proofs\b/i },
+];
+
+function glossifyText(raw: string): string {
+	let html = escapeHtml(raw);
+	for (const { key, re } of GLOSS_PATTERNS) {
+		const m = html.match(re);
+		if (!m) continue;
+		const matched = m[0];
+		html = html.replace(
+			re,
+			`<span class="gloss" tabindex="0" role="note" aria-label="${escapeHtml(GLOSSARY[key])}">${matched}<span class="gloss__pop" aria-hidden="true">${escapeHtml(GLOSSARY[key])}</span></span>`,
+		);
+	}
+	return html;
 }
 
 function formatBytes(b: number): string {
@@ -89,6 +143,72 @@ function renderHero(): HTMLElement {
     </div>
   `;
 	return hero;
+}
+
+// --- plain-language primer + guided reading path ---------------------------
+// The Arena and every card below presuppose four terms. Define them plainly,
+// once, up front — so a newcomer meeting SNARKs/STARKs for the first time can
+// read the eight-dimension comparison on prepared ground instead of guessing.
+function renderPrimer(): HTMLElement {
+	const section = el('section', 'lab-section');
+	section.setAttribute('aria-labelledby', 'primer-heading');
+	section.innerHTML = `
+    <div class="section-heading-row">
+      <div>
+        <p class="section-kicker">Start here</p>
+        <h2 id="primer-heading">What even is a SNARK or a STARK?</h2>
+        <p class="section-footnote">
+          Both are <strong>zero-knowledge succinct proofs</strong>: a way for a <em>prover</em> to
+          convince a <em>verifier</em> that some computation was done correctly — revealing nothing
+          else and without the verifier re-running the work. A zk-<strong>SNARK</strong> and a
+          zk-<strong>STARK</strong> are two different families for building such proofs. Before we
+          put them head to head, here are the four words the whole comparison turns on.
+        </p>
+      </div>
+    </div>
+    <dl class="primer-grid">
+      <div class="primer-term">
+        <dt>Proof size</dt>
+        <dd>How many bytes the proof takes up. Smaller is cheaper to send and to store — and on a
+        blockchain, cheaper to post. SNARK proofs are tiny (hundreds of bytes); STARK proofs are
+        far larger (tens to hundreds of KB).</dd>
+      </div>
+      <div class="primer-term">
+        <dt>Prover</dt>
+        <dd>The party that <em>builds</em> the proof. Proving is the expensive step: it runs the
+        whole computation and does heavy math on top. "Prover time" is how long that takes and how
+        well it scales to huge computations.</dd>
+      </div>
+      <div class="primer-term">
+        <dt>Verifier</dt>
+        <dd>The party that <em>checks</em> the proof. The whole point of "succinct" is that
+        verifying is far cheaper than redoing the computation — often milliseconds regardless of how
+        big the original job was.</dd>
+      </div>
+      <div class="primer-term">
+        <dt>Trusted setup</dt>
+        <dd>A one-time ceremony some SNARKs need <em>before any proofs exist</em>, which produces
+        public parameters from a secret. If that secret (the "toxic waste") is not destroyed, its
+        holder can forge proofs of false statements forever. STARKs need no such ceremony — you can
+        feel exactly why in the <a href="#setup">Trusted Setup</a> exhibit below.</dd>
+      </div>
+    </dl>
+    <div class="primer-path" role="group" aria-label="Suggested reading order">
+      <p class="primer-path__lead">New to this? Follow the exhibits in order:</p>
+      <ol class="primer-path__list">
+        <li><a href="#arena">Compare the tradeoffs</a> across eight dimensions</li>
+        <li><a href="#visualizer">See the size gap</a> drawn to scale</li>
+        <li><a href="#protocol"><strong>Run a live zero-knowledge proof</strong></a> — the core idea, hands-on</li>
+        <li><a href="#setup">Break a trusted setup</a> yourself with kept toxic waste</li>
+        <li><a href="#recommender">Pick the right family</a> for a use case</li>
+      </ol>
+      <p class="section-footnote primer-path__note">
+        The live proof in step 3 is the one section that shows <em>how</em> zero-knowledge actually
+        works — everything else compares the two families around it.
+      </p>
+    </div>
+  `;
+	return section;
 }
 
 // --- dimension explorer ----------------------------------------------------
@@ -213,7 +333,7 @@ function renderProofVisualizer(): HTMLElement {
         </div>
         <dl class="viz-stats">
           <div><dt>Verifier</dt><dd class="mono-inline">O(1)</dd></div>
-          <div><dt>Gas to post @ 16 g/B</dt><dd class="mono-inline" id="viz-snark-gas"></dd></div>
+          <div><dt>${gloss('gas', 'On-chain gas')} <span class="viz-stat-unit">@16/byte</span></dt><dd class="mono-inline" id="viz-snark-gas"></dd></div>
         </dl>
       </figure>
       <figure class="viz-card viz-card--stark">
@@ -224,9 +344,10 @@ function renderProofVisualizer(): HTMLElement {
         <div class="viz-canvas-wrap">
           <canvas id="viz-stark" class="viz-canvas" aria-hidden="true"></canvas>
         </div>
+        <p class="viz-truncation" id="viz-truncation" hidden></p>
         <dl class="viz-stats">
           <div><dt>Verifier</dt><dd class="mono-inline">O(log² N)</dd></div>
-          <div><dt>Gas to post @ 16 g/B</dt><dd class="mono-inline" id="viz-stark-gas"></dd></div>
+          <div><dt>${gloss('gas', 'On-chain gas')} <span class="viz-stat-unit">@16/byte</span></dt><dd class="mono-inline" id="viz-stark-gas"></dd></div>
         </dl>
       </figure>
     </div>
@@ -253,6 +374,7 @@ function renderProofVisualizer(): HTMLElement {
 	const starkGas = section.querySelector('#viz-stark-gas') as HTMLElement;
 	const snarkCanvas = section.querySelector('#viz-snark') as HTMLCanvasElement;
 	const starkCanvas = section.querySelector('#viz-stark') as HTMLCanvasElement;
+	const truncationEl = section.querySelector('#viz-truncation') as HTMLElement;
 
 	const CELL = 4; // px per 16-byte cell
 	const GAP = 1;
@@ -267,9 +389,9 @@ function renderProofVisualizer(): HTMLElement {
 		cols: number,
 		maxCells: number,
 		color: string,
-	): void {
+	): { drawnBytes: number; truncated: boolean } {
 		const ctx = canvas.getContext('2d');
-		if (!ctx) return;
+		if (!ctx) return { drawnBytes: bytes, truncated: false };
 		const total = Math.max(1, Math.ceil(bytes / BYTES_PER_CELL));
 		const drawn = Math.min(total, maxCells);
 		const rows = Math.max(1, Math.ceil(drawn / cols));
@@ -297,6 +419,7 @@ function renderProofVisualizer(): HTMLElement {
 			ctx.fillStyle = grad;
 			ctx.fillRect(0, lastRowY, pxW, CELL + GAP + 2);
 		}
+		return { drawnBytes: drawn * BYTES_PER_CELL, truncated: drawn < total };
 	}
 
 	function readColors(): { snark: string; stark: string } {
@@ -317,8 +440,26 @@ function renderProofVisualizer(): HTMLElement {
 		snarkGas.textContent = '≈ ' + (sB * 16).toLocaleString();
 		starkGas.textContent = '≈ ' + (tB * 16).toLocaleString();
 		const colors = readColors();
+		const snarkDots = Math.max(1, Math.ceil(sB / BYTES_PER_CELL));
 		paintCanvas(snarkCanvas, sB, SNARK_COLS, SNARK_COLS * 200, colors.snark);
-		paintCanvas(starkCanvas, tB, STARK_COLS, STARK_MAX_CELLS, colors.stark);
+		const starkPaint = paintCanvas(starkCanvas, tB, STARK_COLS, STARK_MAX_CELLS, colors.stark);
+		// Ratio callout: convert the fade-to-truncation into an explicit lesson so
+		// the shown grid is never mistaken for the STARK proof's true size.
+		if (starkPaint.truncated) {
+			truncationEl.hidden = false;
+			truncationEl.innerHTML =
+				`Showing <strong>${formatBytes(starkPaint.drawnBytes)}</strong> of the full ` +
+				`<strong>${formatBytes(tB)}</strong> STARK proof (the fade means "more below"). ` +
+				`The entire SNARK proof is the <strong>${snarkDots}</strong> ` +
+				`dot${snarkDots === 1 ? '' : 's'} in the other panel — that is the ` +
+				`<strong>${Math.round(tB / sB).toLocaleString()}×</strong> size gap, to scale.`;
+		} else {
+			truncationEl.hidden = false;
+			truncationEl.innerHTML =
+				`Both grids are complete at the same scale: the STARK proof is ` +
+				`<strong>${formatBytes(tB)}</strong> versus the SNARK's <strong>${formatBytes(sB)}</strong> ` +
+				`— a <strong>${Math.round(tB / sB).toLocaleString()}×</strong> difference.`;
+		}
 	}
 
 	slider.addEventListener('input', paint);
@@ -356,10 +497,25 @@ function renderProtocol(): HTMLElement {
         <p class="section-footnote">
           Alice proves she knows the secret <code class="proto-code">x</code> behind public
           <code class="proto-code">y = g<sup>x</sup> mod p</code> — without revealing <code class="proto-code">x</code>.
-          This is the Schnorr identification protocol: the sigma-protocol skeleton at the heart of every SNARK.
-          Math runs in your browser via <code class="proto-code">BigInt</code> and the Web Crypto API.
+          This is the Schnorr identification protocol: the simplest complete example of the two
+          properties every zero-knowledge proof must have — <strong>zero-knowledge</strong> (the
+          verifier learns nothing) and <strong>soundness</strong> (you can't fake it). Math runs in
+          your browser via <code class="proto-code">BigInt</code> and the Web Crypto API.
         </p>
       </div>
+    </div>
+
+    <div class="proto-bridge" role="note">
+      <span class="proto-bridge__tag">Read this first</span>
+      <p>
+        Schnorr is <strong>not</strong> a SNARK. It shows what zero-knowledge and soundness feel
+        like, but it is <em>not</em> succinct — the proof is as big as the statement and there is no
+        trusted setup. SNARKs and STARKs add <strong>succinctness</strong> on top of this idea using
+        machinery Schnorr does not have: <em>arithmetization</em> (turning a program into
+        polynomial equations) plus <em>polynomial commitments</em> (pairings and a trusted setup for
+        SNARKs; hash-based <span class="gloss" tabindex="0" role="note" aria-label="FRI: Fast Reed–Solomon Interactive Oracle Proof of Proximity — a hash-based low-degree test that lets STARKs prove a committed polynomial has low degree without a trusted setup. It is why STARK proofs are larger but need no ceremony.">FRI<span class="gloss__pop">FRI — a hash-based low-degree test that gives STARKs their transparency (no trusted setup), at the cost of larger proofs.</span></span> for STARKs). Use this panel to learn the
+        <em>idea</em>; use the exhibits above and below to learn what makes it <em>succinct</em>.
+      </p>
     </div>
 
     <div class="proto-mode-row" role="group" aria-label="Protocol controls">
@@ -681,6 +837,257 @@ function renderProtocol(): HTMLElement {
 	return section;
 }
 
+// --- interactive trusted setup / toxic waste -------------------------------
+// Mirrors the Schnorr honest/forged toggle for the ONE pillar concept the
+// learner could previously only read about. A real Pedersen-commitment
+// ceremony: keep the trapdoor τ and you can equivocate a commitment to a false
+// value (an accepting proof for a false statement); destroy it and you can't.
+function renderTrustedSetup(): HTMLElement {
+	const section = el('section', 'lab-section');
+	section.id = 'setup';
+	section.setAttribute('aria-labelledby', 'setup-heading');
+
+	let crs: Crs | null = null;
+	let destroyed = false; // whether the operator destroyed the toxic waste
+	let commitment: Commitment | null = null;
+	const TRUE_VALUE = 42n;
+	const FALSE_VALUE = 999n;
+
+	section.innerHTML = `
+    <div class="section-heading-row">
+      <div>
+        <p class="section-kicker">Feel the risk</p>
+        <h2 id="setup-heading">Break a Trusted Setup</h2>
+        <p class="section-footnote">
+          A SNARK's trusted setup runs a ceremony that turns a secret <code class="proto-code">τ</code>
+          ("tau", the <strong>toxic waste</strong>) into public parameters, then is supposed to
+          <em>destroy</em> <code class="proto-code">τ</code>. Here you play the operator. The public
+          commitment below hides the value <code class="proto-code">${TRUE_VALUE}</code>. Try to
+          convince a verifier it hides <code class="proto-code">${FALSE_VALUE}</code> instead — you
+          can only succeed if you kept the waste.
+        </p>
+        <p class="section-footnote proto-meta">
+          Real primitive: a Pedersen commitment <code>C = g<sup>m</sup>·h<sup>s</sup> mod p</code>
+          where <code>h = g<sup>τ</sup></code>. Verified in your browser; the same 256-bit group as
+          the live proof above.
+        </p>
+      </div>
+    </div>
+
+    <div class="proto-mode-row" role="group" aria-label="Ceremony controls">
+      <div class="proto-toggle" role="radiogroup" aria-label="Toxic waste">
+        <button class="proto-toggle__btn is-active" type="button" role="radio" aria-checked="true" data-waste="destroy">Destroy τ (honest)</button>
+        <button class="proto-toggle__btn" type="button" role="radio" aria-checked="false" data-waste="keep">Keep τ (malicious)</button>
+      </div>
+      <button id="setup-reset" type="button" class="ghost-button proto-reset">New ceremony</button>
+    </div>
+
+    <ol class="proto-steps" aria-label="Trusted-setup transcript">
+      <li class="proto-step" data-step="1">
+        <div class="proto-step__head">
+          <span class="proto-step__num">1</span>
+          <div>
+            <h3 class="proto-h3">Run the ceremony</h3>
+            <p class="proto-step__sub">Sample secret <code>τ</code>, publish CRS <code>h = g<sup>τ</sup> mod p</code>, then destroy or keep <code>τ</code>.</p>
+          </div>
+          <button type="button" class="action-button proto-go" data-setup-go="1">Run</button>
+        </div>
+        <div class="proto-step__body"><p class="proto-empty">— waiting —</p></div>
+      </li>
+      <li class="proto-step" data-step="2">
+        <div class="proto-step__head">
+          <span class="proto-step__num">2</span>
+          <div>
+            <h3 class="proto-h3">Publish a commitment</h3>
+            <p class="proto-step__sub">Commit to the true value <code>${TRUE_VALUE}</code>: <code>C = g<sup>${TRUE_VALUE}</sup>·h<sup>s</sup> mod p</code>.</p>
+          </div>
+          <button type="button" class="action-button proto-go" data-setup-go="2" disabled>Run</button>
+        </div>
+        <div class="proto-step__body"><p class="proto-empty">— waiting —</p></div>
+      </li>
+      <li class="proto-step" data-step="3">
+        <div class="proto-step__head">
+          <span class="proto-step__num">3</span>
+          <div>
+            <h3 class="proto-h3">Forge a false opening</h3>
+            <p class="proto-step__sub">Claim the same <code>C</code> opens to <code>${FALSE_VALUE}</code>, using <code>τ</code> to back-solve the randomness <code>s′</code>.</p>
+          </div>
+          <button type="button" class="action-button proto-go" data-setup-go="3" disabled>Run</button>
+        </div>
+        <div class="proto-step__body"><p class="proto-empty">— waiting —</p></div>
+      </li>
+      <li class="proto-step" data-step="4">
+        <div class="proto-step__head">
+          <span class="proto-step__num">4</span>
+          <div>
+            <h3 class="proto-h3">Verify the false claim</h3>
+            <p class="proto-step__sub">The verifier checks <code>C ?= g<sup>${FALSE_VALUE}</sup>·h<sup>s′</sup> mod p</code> using only the public CRS.</p>
+          </div>
+          <button type="button" class="action-button proto-go" data-setup-go="4" disabled>Run</button>
+        </div>
+        <div class="proto-step__body"><p class="proto-empty">— waiting —</p></div>
+      </li>
+    </ol>
+
+    <div id="setup-verdict" class="proto-verdict" hidden></div>
+
+    <details class="explanation-details proto-why-zk">
+      <summary>Why does keeping τ let you forge — and destroying it stop you?</summary>
+      <p>
+        The commitment <code>C = g<sup>m</sup>·h<sup>s</sup></code> is <em>binding</em> only because
+        nobody knows <code>τ = log<sub>g</sub> h</code>. If you do know <code>τ</code>, then for any
+        target <code>m′</code> you can solve <code>s′ = s + (m − m′)·τ<sup>−1</sup> mod q</code>, and
+        <code>g<sup>m′</sup>·h<sup>s′</sup></code> collapses back to the exact same <code>C</code> —
+        so the verifier accepts a value that was never committed.
+      </p>
+      <p>
+        Destroy <code>τ</code> and that back-solve is impossible: recovering it means computing a
+        discrete logarithm, which is infeasible. That is the entire security argument behind a
+        trusted setup — and exactly why an undestroyed ceremony is a permanent backdoor. STARKs sidestep
+        this by having <strong>no secret to destroy</strong> in the first place.
+      </p>
+    </details>
+  `;
+
+	const wasteBtns = section.querySelectorAll<HTMLButtonElement>('[data-waste]');
+	const goBtns = section.querySelectorAll<HTMLButtonElement>('.proto-go');
+	const steps = section.querySelectorAll<HTMLElement>('.proto-step');
+	const verdict = section.querySelector('#setup-verdict') as HTMLElement;
+	const resetBtn = section.querySelector('#setup-reset') as HTMLButtonElement;
+
+	let progress = 0;
+
+	function setBody(step: number, html: string): void {
+		const li = steps[step - 1];
+		(li.querySelector('.proto-step__body') as HTMLElement).innerHTML = html;
+		li.classList.add('is-done');
+	}
+
+	function clearFrom(step: number): void {
+		for (let i = step; i <= 4; i++) {
+			steps[i - 1].classList.remove('is-done');
+			(steps[i - 1].querySelector('.proto-step__body') as HTMLElement).innerHTML =
+				'<p class="proto-empty">— waiting —</p>';
+		}
+		if (step <= progress) progress = step - 1;
+		verdict.hidden = true;
+		updateButtons();
+	}
+
+	function updateButtons(): void {
+		goBtns.forEach((b) => {
+			const n = Number(b.dataset.setupGo);
+			b.disabled = n === 1 ? false : progress < n - 1;
+		});
+	}
+
+	function fullReset(): void {
+		crs = null;
+		commitment = null;
+		progress = 0;
+		clearFrom(1);
+		updateButtons();
+	}
+
+	function runStep(n: number): void {
+		if (n === 1) {
+			clearFrom(2);
+			crs = runCeremony();
+			commitment = null;
+			progress = 1;
+			const wasteLine = destroyed
+				? `<p class="proto-note">✓ <code>τ</code> destroyed. Only the public CRS <code>h</code> survives.</p>`
+				: `<p class="proto-note proto-note--warn">⚠ <code>τ</code> kept. The operator now holds a permanent backdoor.</p>`;
+			setBody(
+				1,
+				`<dl class="proto-kv">
+          <div><dt><code>τ</code> (toxic waste)</dt><dd class="mono-inline" title="${fullHex(crs.tau)}">${destroyed ? '•••••••• (destroyed)' : shortHex(crs.tau)}</dd></div>
+          <div><dt><code>h = g<sup>τ</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(crs.h)}">${shortHex(crs.h)}</dd></div>
+        </dl>${wasteLine}`,
+			);
+		} else if (n === 2) {
+			if (!crs) return;
+			clearFrom(3);
+			commitment = commitValue(crs.h, TRUE_VALUE);
+			progress = 2;
+			setBody(
+				2,
+				`<dl class="proto-kv">
+          <div><dt>value <code>m</code></dt><dd class="mono-inline">${TRUE_VALUE}</dd></div>
+          <div><dt>randomness <code>s</code></dt><dd class="mono-inline" title="${fullHex(commitment.s)}">${shortHex(commitment.s)}</dd></div>
+          <div><dt>commitment <code>C</code></dt><dd class="mono-inline" title="${fullHex(commitment.c)}">${shortHex(commitment.c)}</dd></div>
+        </dl><p class="proto-meta">This <code>C</code> is the public statement. The verifier will only ever see <code>C</code> and the CRS.</p>`,
+			);
+		} else if (n === 3) {
+			if (!crs || !commitment) return;
+			clearFrom(4);
+			progress = 3;
+			if (destroyed) {
+				setBody(
+					3,
+					`<p class="proto-note proto-note--warn">⚠ <code>τ</code> was destroyed, so <code>s′ = s + (m − m′)·τ<sup>−1</sup></code> cannot be computed. The best you can do is guess randomness for <code>${FALSE_VALUE}</code> — which will not match <code>C</code>.</p>`,
+				);
+			} else {
+				const forgedS = forgeOpening(crs.tau, commitment.m, commitment.s, FALSE_VALUE);
+				(commitment as Commitment & { forgedS?: bigint }).forgedS = forgedS;
+				setBody(
+					3,
+					`<dl class="proto-kv">
+            <div><dt>claimed <code>m′</code></dt><dd class="mono-inline">${FALSE_VALUE}</dd></div>
+            <div><dt>forged <code>s′</code></dt><dd class="mono-inline" title="${fullHex(forgedS)}">${shortHex(forgedS)}</dd></div>
+          </dl><p class="proto-meta">Back-solved from <code>τ</code> so that <code>g<sup>${FALSE_VALUE}</sup>·h<sup>s′</sup></code> lands on the exact same <code>C</code>.</p>`,
+				);
+			}
+		} else if (n === 4) {
+			if (!crs || !commitment) return;
+			progress = 4;
+			let sTried: bigint;
+			if (destroyed) {
+				// No trapdoor: attacker can only guess. Model that as a wrong s; it fails.
+				sTried = (commitment.s + 1n) % Q;
+			} else {
+				sTried = (commitment as Commitment & { forgedS?: bigint }).forgedS ?? commitment.s;
+			}
+			const accepted = verifyOpening(crs.h, commitment.c, FALSE_VALUE, sTried);
+			setBody(
+				4,
+				`<dl class="proto-kv">
+          <div><dt><code>C</code></dt><dd class="mono-inline" title="${fullHex(commitment.c)}">${shortHex(commitment.c)}</dd></div>
+          <div><dt><code>g<sup>${FALSE_VALUE}</sup>·h<sup>s${destroyed ? '?' : '′'}</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex((modpow(G, FALSE_VALUE, P) * modpow(crs.h, sTried, P)) % P)}">${shortHex((modpow(G, FALSE_VALUE, P) * modpow(crs.h, sTried, P)) % P)}</dd></div>
+        </dl>`,
+			);
+			verdict.hidden = false;
+			verdict.className = 'proto-verdict ' + (accepted ? 'is-bad' : 'is-ok');
+			verdict.innerHTML = accepted
+				? `<span class="proto-verdict__mark" aria-hidden="true">✗</span><div><strong>False claim ACCEPTED.</strong> The verifier believes <code>C</code> opens to <code>${FALSE_VALUE}</code>. Kept toxic waste just forged a proof of a false statement — this is the trusted-setup backdoor.</div>`
+				: `<span class="proto-verdict__mark" aria-hidden="true">✓</span><div><strong>False claim rejected.</strong> With <code>τ</code> destroyed the numbers don't match, so <code>C</code> stays bound to its true value. This is what an honest ceremony buys you.</div>`;
+		}
+		updateButtons();
+	}
+
+	wasteBtns.forEach((b) => {
+		b.addEventListener('click', () => {
+			destroyed = b.dataset.waste === 'destroy';
+			wasteBtns.forEach((x) => {
+				const on = x === b;
+				x.classList.toggle('is-active', on);
+				x.setAttribute('aria-checked', on ? 'true' : 'false');
+			});
+			// changing the waste decision invalidates the ceremony from step 1
+			fullReset();
+		});
+	});
+
+	goBtns.forEach((b) => {
+		b.addEventListener('click', () => runStep(Number(b.dataset.setupGo)));
+	});
+
+	resetBtn.addEventListener('click', fullReset);
+
+	updateButtons();
+	return section;
+}
+
 // --- use-case recommender --------------------------------------------------
 
 function readHashAnswers(): Record<string, number> {
@@ -899,7 +1306,7 @@ function renderSystems(): HTMLElement {
         <div><dt class="hero-metric-label">Setup</dt><dd class="mono-inline">${escapeHtml(s.setup)}</dd></div>
         <div><dt class="hero-metric-label">Post-quantum</dt><dd class="mono-inline">${s.pq === 'plausible' ? 'plausible' : 'no'}</dd></div>
       </dl>
-      <p class="panel-copy">${escapeHtml(s.note)}</p>
+      <p class="panel-copy">${glossifyText(s.note)}</p>
     </article>`,
 	).join('');
 	section.innerHTML = `
@@ -929,7 +1336,7 @@ function renderTimeline(): HTMLElement {
         <span class="vs-chip ${familyClass(m.family)}" aria-label="Family: ${m.family}">${m.family}</span>
       </div>
       <h3 class="timeline-title">${escapeHtml(m.title)}</h3>
-      <p class="panel-copy">${escapeHtml(m.note)}</p>
+      <p class="panel-copy">${glossifyText(m.note)}</p>
     </li>`,
 	).join('');
 	section.innerHTML = `
@@ -1165,9 +1572,11 @@ function setupKeyboardLayer(): void {
 
 // --- sticky scroll-spy nav -------------------------------------------------
 const NAV_ITEMS: { id: string; label: string }[] = [
+	{ id: 'primer', label: 'Primer' },
 	{ id: 'arena', label: 'Arena' },
 	{ id: 'visualizer', label: 'Sizes' },
 	{ id: 'protocol', label: 'Live ZK' },
+	{ id: 'setup', label: 'Setup' },
 	{ id: 'recommender', label: 'Recommend' },
 	{ id: 'systems', label: 'Systems' },
 	{ id: 'timeline', label: 'Milestones' },
@@ -1241,11 +1650,14 @@ export function mountApp(root: HTMLDivElement): void {
 	main.id = 'main';
 	main.setAttribute('tabindex', '-1');
 
+	const primer = renderPrimer();
+	primer.id = 'primer';
 	const arena = renderArena();
 	arena.id = 'arena';
 	const viz = renderProofVisualizer();
 	viz.id = 'visualizer';
 	const protocol = renderProtocol();
+	const setup = renderTrustedSetup();
 	const recommender = renderRecommender();
 	recommender.id = 'recommender';
 	const systems = renderSystems();
@@ -1255,7 +1667,7 @@ export function mountApp(root: HTMLDivElement): void {
 	const shared = renderShared();
 	shared.id = 'shared';
 
-	main.append(arena, viz, protocol, recommender, systems, timeline, shared);
+	main.append(primer, arena, viz, protocol, setup, recommender, systems, timeline, shared);
 	shell.append(renderHero(), renderNav(), main, renderFooter());
 	root.appendChild(shell);
 	root.appendChild(renderBackToTop());
