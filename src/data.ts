@@ -94,7 +94,12 @@ export const SYSTEMS: ZkSystem[] = [
 	{ name: 'PLONK', type: 'SNARK', setup: 'universal trusted setup', pq: 'no', note: 'One universal setup reusable across circuits; slightly larger proofs than Groth16.' },
 	{ name: 'Halo2', type: 'SNARK', setup: 'no trusted setup (IPA)', pq: 'no', note: 'Recursive-friendly SNARK avoiding a trusted setup via inner-product arguments; still pairing/EC-based.' },
 	{ name: 'FRI-based STARK', type: 'STARK', setup: 'transparent (none)', pq: 'plausible', note: 'Hash-based proofs via FRI; transparent and plausibly post-quantum, at the cost of larger proofs.' },
-	{ name: 'Plonky2', type: 'STARK', setup: 'transparent (none)', pq: 'plausible', note: 'STARK-style with a small recursive SNARK wrapper for fast verification; very fast prover.' },
+	// Plonky2's own README calls it "a SNARK implementation based on techniques
+	// from PLONK and FRI": PLONK-style arithmetization, FRI as the polynomial
+	// commitment scheme. "STARK-style" is common shorthand for the FRI half, but
+	// the family label is SNARK. It is transparent and plausibly post-quantum
+	// because FRI is hash-based, not because it is a STARK.
+	{ name: 'Plonky2', type: 'SNARK', setup: 'transparent (none)', pq: 'plausible', note: 'PLONK-style arithmetization with hash-based FRI commitments — a SNARK that still needs no trusted setup; recursion-friendly and very fast to prove.' },
 ];
 
 // --- use-case recommender --------------------------------------------------
@@ -199,9 +204,9 @@ export const MILESTONES: Milestone[] = [
 	},
 	{
 		year: 2022,
-		family: 'STARK',
+		family: 'SNARK',
 		title: 'Plonky2',
-		note: 'Recursive STARK with a SNARK wrapper from Polygon Zero. Millisecond verification of complex statements; a high-water mark for prover throughput.',
+		note: 'Polygon Zero’s recursive SNARK built from PLONK arithmetization over FRI — transparent like a STARK, but a SNARK by construction. Millisecond verification of complex statements; a high-water mark for prover throughput.',
 	},
 ];
 

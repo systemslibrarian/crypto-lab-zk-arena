@@ -1,19 +1,27 @@
-// schnorr.ts — a working Schnorr identification (sigma) protocol over a
-// prime-order group, with optional Fiat-Shamir non-interactivisation.
+// schnorr.ts — a working Schnorr identification (sigma) protocol, with optional
+// Fiat-Shamir non-interactivisation.
 //
 // This is a real, runnable zero-knowledge proof of knowledge of the discrete
 // logarithm x such that y = g^x mod p. It is the cleanest example of the
 // {commit, challenge, response} structure that lies under every modern SNARK.
 //
-// The chosen group parameters are educational-grade: a 256-bit prime with a
-// small generator. Do not use for production cryptography.
+// The group parameters are educational-grade and, importantly, NOT prime-order:
+// see the note on Q below. Schnorr is analysed over a group of prime order, so
+// the textbook security argument does not transfer to these parameters. That is
+// disclosed to the learner in the rendered UI (`toyParamsNote` in ui.ts) rather
+// than only here, because the weakness is observable in the exhibit itself.
+// Do not use for production cryptography.
 
 // secp256k1 field prime (well-known 256-bit prime).
 export const P: bigint = (1n << 256n) - (1n << 32n) - 977n;
-// Generator chosen as a small primitive-like element for the demo.
+// 5 is a primitive root mod P, so <g> is the whole multiplicative group.
 export const G: bigint = 5n;
-// Group order used for exponents. Using P - 1 keeps the demo simple; a real
-// Schnorr deployment would use a subgroup of prime order Q < P-1.
+// Group order used for exponents. This is the true order of <g>, but it is
+// COMPOSITE: P - 1 = 2 * 3 * 7 * 13441 * q', with q' a 237-bit prime. Those
+// small factors mean Pohlig-Hellman recovers x mod 2, 3, 7 and 13441 — about
+// 19 bits of the secret — from the public key y alone, before any proof runs.
+// A real Schnorr deployment picks a subgroup of PRIME order Q dividing P-1
+// (or an elliptic-curve group), where no such factors exist to leak through.
 export const Q: bigint = P - 1n;
 
 export function modpow(base: bigint, exp: bigint, mod: bigint): bigint {

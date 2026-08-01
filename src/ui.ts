@@ -475,6 +475,44 @@ function renderProofVisualizer(): HTMLElement {
 }
 
 // --- live Schnorr ZK protocol ----------------------------------------------
+/**
+ * The disclosure that belongs on the page, not only in a source comment.
+ *
+ * Both live exhibits run in ⟨g⟩ with g = 5 and exponents taken mod Q = P − 1,
+ * where P is the secp256k1 field prime. g = 5 is a primitive root mod P, so the
+ * group really does have order P − 1 — but P − 1 = 2 · 3 · 7 · 13441 · q (q a
+ * 237-bit prime) is COMPOSITE. Schnorr's and Pedersen's textbook analyses assume
+ * a prime-order group, and that assumption simply does not hold here.
+ *
+ * The consequence is concrete and checkable: because the small factors 2, 3, 7
+ * and 13441 divide the group order, Pohlig–Hellman recovers x mod each of them
+ * from the public key y = g^x alone — about 19 bits of the secret, before any
+ * proof is run. The numbers quoted below were computed from these parameters.
+ */
+function toyParamsNote(): string {
+	return `
+    <div class="proto-bridge proto-bridge--toy" role="note">
+      <span class="proto-bridge__tag">Toy parameters — not production cryptography</span>
+      <p>
+        This exhibit runs in the multiplicative group mod <code>p</code>, the secp256k1 <em>field</em>
+        prime, with generator <code>g = 5</code> and exponents reduced mod <code>q = p − 1</code>.
+        That is <strong>not a prime-order group</strong>:
+        <code>p − 1 = 2 · 3 · 7 · 13441 · q′</code> with <code>q′</code> a 237-bit prime. Both Schnorr
+        and Pedersen are analysed over groups of <em>prime</em> order, so the security argument you
+        will read below does not transfer to these parameters as stated.
+      </p>
+      <p>
+        The gap is not theoretical. Because 2, 3, 7 and 13441 divide the group order, the small
+        subgroups leak: Pohlig–Hellman recovers <code>x mod 2</code>, <code>x mod 3</code>,
+        <code>x mod 7</code> and <code>x mod 13441</code> from the public key <code>y</code> alone —
+        roughly <strong>19 bits of the secret</strong>, with no proof transcript and no interaction.
+        A real deployment uses a group of prime order <code>q</code> (a Schnorr subgroup, or an
+        elliptic curve such as secp256k1's <em>curve</em> group), where no such factors exist.
+      </p>
+    </div>
+  `;
+}
+
 function renderProtocol(): HTMLElement {
 	const section = el('section', 'lab-section');
 	section.id = 'protocol';
@@ -517,6 +555,8 @@ function renderProtocol(): HTMLElement {
         <em>idea</em>; use the exhibits above and below to learn what makes it <em>succinct</em>.
       </p>
     </div>
+
+    ${toyParamsNote()}
 
     <div class="proto-mode-row" role="group" aria-label="Protocol controls">
       <div class="proto-toggle" role="radiogroup" aria-label="Mode">
@@ -612,7 +652,20 @@ function renderProtocol(): HTMLElement {
         <li>Output <code>(t, c, s)</code>. By construction <code>g<sup>s</sup> = t · y<sup>c</sup></code>, so verification accepts.</li>
       </ol>
       <p>
-        Bob's view of an honest run is statistically identical to this simulator's output — so anything he could compute from the real transcript he could already compute on his own. The protocol leaks zero bits about <code>x</code>.
+        Bob's view of an honest run is statistically identical to this simulator's output — so anything he could compute from the real transcript he could already compute on his own.
+      </p>
+      <p class="proto-sim-caveat">
+        <strong>Say that precisely.</strong> The simulator above picks <code>c</code> itself, so what it establishes is
+        <em>honest-verifier</em> zero knowledge: the transcript leaks nothing <em>to a verifier who draws <code>c</code> at
+        random, as the protocol says to</em>. It does not cover a <em>malicious</em> verifier who chooses <code>c</code>
+        adaptively after seeing <code>t</code> — that needs a stronger argument (rewinding, or a coin-flipping /
+        commit-to-<code>c</code> step), which this exhibit does not show. Fiat–Shamir sidesteps the issue by deriving
+        <code>c</code> from a hash of <code>t</code>, leaving no verifier to misbehave.
+      </p>
+      <p class="proto-sim-caveat">
+        And zero knowledge is a statement about the <em>transcript</em>, not about the public key. In this exhibit's
+        composite-order group the key itself already gives up about 19 bits of <code>x</code> — see the toy-parameter
+        note at the top of the panel.
       </p>
       <p>
         The reason it's still sound is the order: when <code>t</code> is committed <em>first</em>, the simulator's trick stops working. The real prover has to know <code>x</code> to produce a valid <code>s</code> for <em>any</em> challenge Bob then sends.
@@ -873,6 +926,8 @@ function renderTrustedSetup(): HTMLElement {
         </p>
       </div>
     </div>
+
+    ${toyParamsNote()}
 
     <div class="proto-mode-row" role="group" aria-label="Ceremony controls">
       <div class="proto-toggle" role="radiogroup" aria-label="Toxic waste">

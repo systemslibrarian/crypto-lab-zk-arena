@@ -607,6 +607,25 @@
   border: 1px solid var(--line);
 }
 
+/* ---------- Toy-parameter disclosure ----------
+   The group these exhibits run in is not the group the textbook analysis
+   assumes. That belongs on the page, not only in a source comment, so it gets
+   the warning palette rather than the neutral bridge-note palette. */
+.proto-bridge--toy {
+  border-color: var(--warning-border);
+  border-left-color: var(--warning-fg);
+  background: var(--warning-bg);
+}
+
+.proto-bridge--toy .proto-bridge__tag,
+[data-theme="dark"] .proto-bridge--toy .proto-bridge__tag {
+  color: var(--warning-fg);
+}
+
+.proto-bridge--toy p + p {
+  margin-top: 10px;
+}
+
 /* ---------- first-use glossary popovers ---------- */
 .gloss {
   position: relative;
@@ -1294,6 +1313,14 @@ kbd {
   padding-left: 24px;
   display: grid;
   gap: 6px;
+}
+
+/* Scope-of-the-claim caveats: what the simulator argument does and does not
+   cover. Set apart so they read as part of the result, not as an aside. */
+.proto-sim-caveat {
+  border-left: 3px solid color-mix(in oklab, var(--accent-3) 60%, var(--line-strong));
+  padding-left: 12px;
+  color: var(--ink);
 }
 
 .proto-why-zk code {

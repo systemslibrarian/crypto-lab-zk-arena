@@ -17,8 +17,8 @@ A head-to-head comparison of the two leading families of succinct zero-knowledge
 1. **Primer — "What even is a SNARK or a STARK?"** — plainly defines proof size, prover, verifier, and trusted setup, plus a numbered "start here" reading path so a newcomer never lands mid-page in the deep end.
 2. **The Arena** — click any of eight comparison dimensions to see both families' values, who it favours, and why; full keyboard tablist navigation.
 3. **Proof Sizes, To Scale** — both proofs drawn dot-for-dot at one shared byte scale, with an explicit ratio caption ("showing X KB of a Y KB proof… the SNARK is these N dots") so the size gap is unmistakable.
-4. **Run a Zero-Knowledge Proof** — a live, in-browser Schnorr identification protocol (interactive and Fiat–Shamir modes) with an honest-vs-forged toggle that flips soundness on demand. Framed honestly: this teaches the *idea*, not SNARK succinctness.
-5. **Break a Trusted Setup** — a real Pedersen-commitment ceremony; destroy the toxic waste τ and a false claim is rejected, keep it and the same commitment forges an accepted opening to a value it never held.
+4. **Run a Zero-Knowledge Proof** — a live, in-browser Schnorr identification protocol (interactive and Fiat–Shamir modes) with an honest-vs-forged toggle that flips soundness on demand. Framed honestly: this teaches the *idea*, not SNARK succinctness, and the panel opens with a toy-parameter disclosure naming the composite group order and the ~19 bits of the secret it leaks.
+5. **Break a Trusted Setup** — a real Pedersen-commitment ceremony; destroy the toxic waste τ and a false claim is rejected, keep it and the same commitment forges an accepted opening to a value it never held. Carries the same toy-parameter disclosure, since it runs in the same group.
 6. **Pick Your Use Case** — a weighted recommender whose answers are shareable via the URL.
 7. **Real Systems, Milestones, and What They Share** — Groth16, PLONK, Halo2, FRI-based STARKs, Plonky2, a short history, and common ground, with first-use glossary popovers for FRI, Merkle paths, pairings, IPA, and recursion.
 
@@ -44,6 +44,8 @@ The Arena lets you click any comparison dimension to see both systems' values si
 - **Posting large STARK proofs on-chain naively** — proof size drives calldata cost; STARKs are often wrapped in a small SNARK precisely to make on-chain verification cheap.
 - **Confusing "transparent" with "zero-knowledge"** — STARK transparency refers to needing no trusted setup; zero-knowledge is a separate, optional property.
 - **Reading one benchmark as universal** — prover and verifier times are highly circuit-dependent; a result on one workload may reverse on another.
+- **Running a sigma protocol in a group whose order is not prime** — the two live exhibits do exactly that, deliberately and with the fact stated on the page. They use `g = 5` with exponents mod `p − 1` where `p` is the secp256k1 field prime, and `p − 1 = 2 · 3 · 7 · 13441 · q′` is composite. Pohlig–Hellman then recovers `x` modulo each small factor — about 19 bits — from the public key alone. Prime-order groups are a precondition of the security proof, not a stylistic preference.
+- **Reading zero-knowledge as unconditional** — the simulator argument shown in the Schnorr panel establishes *honest-verifier* zero knowledge. A verifier who picks the challenge adaptively after seeing the commitment is outside what that argument covers.
 
 ## Real-World Usage
 
