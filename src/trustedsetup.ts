@@ -14,10 +14,16 @@
 // opens the SAME C. That is the toxic-waste forgery — an accepting proof for a
 // false statement, produced without ever breaking the discrete log.
 //
-// The math is spec-accurate; the group parameters are educational-grade (the
-// same 256-bit prime as the Schnorr demo). Do not use for production.
+// The math is spec-accurate. Like the Schnorr exhibit, it runs in whichever of
+// the two parameter sets the learner selects, and carries the same caveat: in
+// the toy group the trapdoor's own "public key" h leaks ~19 bits of τ before
+// the ceremony has done anything. Do not use for production.
 
-import { G, modpow, P, Q, randBig } from './schnorr.ts';
+import { TOY_GROUP, type GroupParams } from './groups.ts';
+import { modpow, randBig } from './schnorr.ts';
+import { modInverse } from './pohlig.ts';
+
+export { modInverse } from './pohlig.ts';
 
 export interface Crs {
 	/** trapdoor τ; in a real ceremony this is the "toxic waste" that must be destroyed */
@@ -40,46 +46,50 @@ function gcd(a: bigint, b: bigint): bigint {
 	return a < 0n ? -a : a;
 }
 
-/** Modular inverse a⁻¹ mod m via the extended Euclidean algorithm. */
-export function modInverse(a: bigint, m: bigint): bigint {
-	let [old_r, r] = [((a % m) + m) % m, m];
-	let [old_s, s] = [1n, 0n];
-	while (r !== 0n) {
-		const q = old_r / r;
-		[old_r, r] = [r, old_r - q * r];
-		[old_s, s] = [s, old_s - q * s];
-	}
-	if (old_r !== 1n) throw new Error('no modular inverse (value not coprime to modulus)');
-	return ((old_s % m) + m) % m;
+function randExponent(params: GroupParams): bigint {
+	return (randBig(params.qBits + 128) % (params.q - 1n)) + 1n;
 }
 
 /**
  * Run the setup ceremony: sample τ and publish h = g^τ mod p.
  *
- * We reject any τ that shares a factor with the group order q. In a real
- * prime-order subgroup every nonzero τ is invertible; this demo reuses the
- * Schnorr group whose order q = p − 1 is composite, so we sample τ coprime to q
- * (still uniform among invertible exponents) to keep the equivocation math
- * exact. This is a property of the toy parameters, not of trusted setup.
+ * We reject any τ that shares a factor with the group order q. In a prime-order
+ * group (the safe parameter set) every nonzero τ is already invertible and this
+ * loop never fires; in the toy group q = p − 1 is composite, so sampling τ
+ * coprime to q keeps the equivocation math exact. That extra condition is a
+ * property of the toy parameters, not of trusted setup.
  */
-export function runCeremony(): Crs {
-	let tau = (randBig() % (Q - 1n)) + 1n;
-	while (gcd(tau, Q) !== 1n) tau = (randBig() % (Q - 1n)) + 1n;
-	const h = modpow(G, tau, P);
+export function runCeremony(params: GroupParams = TOY_GROUP): Crs {
+	let tau = randExponent(params);
+	while (gcd(tau, params.q) !== 1n) tau = randExponent(params);
+	const h = modpow(params.g, tau, params.p);
 	return { tau, h };
 }
 
 /** Pedersen commitment C = g^m · h^s mod p to value m with fresh randomness. */
-export function commitValue(h: bigint, m: bigint): Commitment {
-	const s = (randBig() % (Q - 1n)) + 1n;
-	const c = (modpow(G, ((m % Q) + Q) % Q, P) * modpow(h, s, P)) % P;
-	return { m: ((m % Q) + Q) % Q, s, c };
+export function commitValue(
+	h: bigint,
+	m: bigint,
+	params: GroupParams = TOY_GROUP,
+): Commitment {
+	const { g, p, q } = params;
+	const s = randExponent(params);
+	const mm = ((m % q) + q) % q;
+	const c = (modpow(g, mm, p) * modpow(h, s, p)) % p;
+	return { m: mm, s, c };
 }
 
 /** Verify an opening (m, s) of commitment c against the public CRS h. */
-export function verifyOpening(h: bigint, c: bigint, m: bigint, s: bigint): boolean {
-	const lhs = c % P;
-	const rhs = (modpow(G, ((m % Q) + Q) % Q, P) * modpow(h, ((s % Q) + Q) % Q, P)) % P;
+export function verifyOpening(
+	h: bigint,
+	c: bigint,
+	m: bigint,
+	s: bigint,
+	params: GroupParams = TOY_GROUP,
+): boolean {
+	const { g, p, q } = params;
+	const lhs = c % p;
+	const rhs = (modpow(g, ((m % q) + q) % q, p) * modpow(h, ((s % q) + q) % q, p)) % p;
 	return lhs === rhs;
 }
 
@@ -97,8 +107,10 @@ export function forgeOpening(
 	mReal: bigint,
 	sReal: bigint,
 	mFalse: bigint,
+	params: GroupParams = TOY_GROUP,
 ): bigint {
-	const tauInv = modInverse(tau, Q);
-	const delta = (((mReal - mFalse) % Q) + Q) % Q;
-	return (((sReal + delta * tauInv) % Q) + Q) % Q;
+	const q = params.q;
+	const tauInv = modInverse(tau, q);
+	const delta = (((mReal - mFalse) % q) + q) % q;
+	return (((sReal + delta * tauInv) % q) + q) % q;
 }

@@ -626,6 +626,141 @@
   margin-top: 10px;
 }
 
+/* The safe-parameter counterpart: same shape, calm palette, because here the
+   note describes a group that actually holds up rather than warning about one
+   that does not. */
+.proto-bridge--safe {
+  border-color: color-mix(in oklab, var(--accent-4) 45%, var(--line-strong));
+  border-left-color: var(--accent-4);
+  background: color-mix(in oklab, var(--accent-4) 10%, var(--panel));
+}
+
+.proto-bridge--safe .proto-bridge__tag,
+[data-theme="dark"] .proto-bridge--safe .proto-bridge__tag {
+  color: var(--accent-4);
+}
+
+.proto-bridge--safe p + p {
+  margin-top: 10px;
+}
+
+/* ---------- group parameter selector ---------- */
+.proto-group-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin: 18px 0 14px;
+}
+
+.proto-group-row__hint {
+  margin: 0;
+}
+
+/* ---------- the live leak lab ----------
+   Where the toy group's weakness stops being a claim and becomes something the
+   reader can trigger. Styled as a working instrument rather than a warning
+   banner: the warning is the disclosure above it, this is the evidence. */
+.leak-lab {
+  margin: 0 0 20px;
+  padding: 20px 22px;
+}
+
+.leak-lab__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.leak-lab__head .proto-h3 {
+  margin: 0 0 4px;
+}
+
+.leak-lab__sub {
+  margin: 0;
+  max-width: 62ch;
+}
+
+.leak-lab__out:empty {
+  display: none;
+}
+
+.leak-lab__out {
+  margin-top: 18px;
+}
+
+.leak-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.leak-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.leak-table td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: baseline;
+}
+
+.leak-row--broken .leak-row__verdict {
+  color: var(--warning-fg);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .leak-row--broken .leak-row__verdict {
+  color: var(--accent-2);
+}
+
+.leak-row--safe td {
+  color: var(--ink-soft);
+}
+
+.leak-lab__bits {
+  color: var(--ink-soft);
+  font-size: 0.85em;
+}
+
+.leak-lab__totals {
+  margin-top: 16px;
+}
+
+.leak-lab__verdict {
+  margin-top: 16px;
+}
+
+.leak-lab__footnote {
+  margin-top: 14px;
+  max-width: 74ch;
+}
+
+/* On narrow screens the four-column result table is the thing most likely to
+   force a horizontal scrollbar onto the whole page, so let it scroll itself. */
+@media (max-width: 640px) {
+  .leak-lab__out {
+    overflow-x: auto;
+  }
+
+  .leak-table {
+    min-width: 460px;
+  }
+
+  .leak-lab__head .action-button {
+    width: 100%;
+  }
+}
+
 /* ---------- first-use glossary popovers ---------- */
 .gloss {
   position: relative;

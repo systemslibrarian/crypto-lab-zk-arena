@@ -10,28 +10,26 @@ import {
 } from './data.ts';
 import { decodeAnswers, encodeAnswers, isAllEmpty } from './hashcodec.ts';
 import {
-	G,
-	P,
 	commit as schnorrCommit,
 	fiatShamirChallenge,
 	fullHex,
 	modpow,
 	newKeypair,
-	randBig,
+	randomChallenge,
 	respond as schnorrRespond,
 	shortHex,
 	verify as schnorrVerify,
-	Q,
 	type Keypair,
 	type Proof,
 } from './schnorr.ts';
+import { GROUPS, smoothPart, type GroupParams } from './groups.ts';
+import { legendreProbe, pohligHellman, type LeakResult } from './pohlig.ts';
 import {
 	commitValue,
 	forgeOpening,
 	runCeremony,
 	verifyOpening,
 	type Commitment,
-	type Crs,
 } from './trustedsetup.ts';
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -474,43 +472,310 @@ function renderProofVisualizer(): HTMLElement {
 	return section;
 }
 
-// --- live Schnorr ZK protocol ----------------------------------------------
+// --- group selection, shared by both live exhibits -------------------------
+//
+// Both live panels run the same protocol code over whichever parameter set is
+// selected. Keeping the selection in one place means the two exhibits can never
+// disagree about which group the page is currently demonstrating.
+
+type GroupId = GroupParams['id'];
+let activeGroupId: GroupId = 'toy';
+const groupListeners = new Set<(p: GroupParams) => void>();
+
+function activeGroup(): GroupParams {
+	return GROUPS[activeGroupId];
+}
+
+function setActiveGroup(id: GroupId): void {
+	if (id === activeGroupId) return;
+	activeGroupId = id;
+	for (const fn of groupListeners) fn(activeGroup());
+}
+
+function onGroupChange(fn: (p: GroupParams) => void): void {
+	groupListeners.add(fn);
+}
+
+/** The group toggle markup, rendered into each live panel. */
+function groupToggleHtml(): string {
+	return `
+    <div class="proto-toggle proto-toggle--group" role="radiogroup" aria-label="Group parameters">
+      <button class="proto-toggle__btn" type="button" role="radio" data-group="toy">Toy group (256-bit, composite order)</button>
+      <button class="proto-toggle__btn" type="button" role="radio" data-group="safe">Safe group (2048-bit, prime order)</button>
+    </div>`;
+}
+
+/** Wire a rendered group toggle to the shared state, both directions. */
+function wireGroupToggle(section: HTMLElement, onChange: (p: GroupParams) => void): void {
+	const btns = section.querySelectorAll<HTMLButtonElement>('[data-group]');
+	function paint(): void {
+		btns.forEach((b) => {
+			const on = b.dataset.group === activeGroupId;
+			b.classList.toggle('is-active', on);
+			b.setAttribute('aria-checked', on ? 'true' : 'false');
+		});
+	}
+	btns.forEach((b) => {
+		b.addEventListener('click', () => setActiveGroup(b.dataset.group as GroupId));
+	});
+	onGroupChange((p) => {
+		paint();
+		onChange(p);
+	});
+	paint();
+}
+
+// --- the parameter disclosure ----------------------------------------------
 /**
  * The disclosure that belongs on the page, not only in a source comment.
  *
- * Both live exhibits run in ⟨g⟩ with g = 5 and exponents taken mod Q = P − 1,
- * where P is the secp256k1 field prime. g = 5 is a primitive root mod P, so the
- * group really does have order P − 1 — but P − 1 = 2 · 3 · 7 · 13441 · q (q a
- * 237-bit prime) is COMPOSITE. Schnorr's and Pedersen's textbook analyses assume
- * a prime-order group, and that assumption simply does not hold here.
+ * The toy set runs in ⟨g⟩ with g = 5 and exponents mod q = p − 1, where p is the
+ * secp256k1 *field* prime. g = 5 is a primitive root mod p, so ⟨g⟩ really does
+ * have order p − 1 — but p − 1 = 2 · 3 · 7 · 13441 · q′ (q′ a 237-bit prime) is
+ * COMPOSITE. Schnorr's and Pedersen's analyses assume a prime-order group, and
+ * that assumption does not hold there.
  *
- * The consequence is concrete and checkable: because the small factors 2, 3, 7
- * and 13441 divide the group order, Pohlig–Hellman recovers x mod each of them
- * from the public key y = g^x alone — about 19 bits of the secret, before any
- * proof is run. The numbers quoted below were computed from these parameters.
+ * The consequence is concrete, checkable, and checked: the "Extract the secret"
+ * lab below runs Pohlig–Hellman for real against the key on screen. Every
+ * number in this copy is asserted by src/groups.test.ts against the parameters
+ * themselves, so the prose cannot drift away from the arithmetic.
  */
-function toyParamsNote(): string {
-	return `
+function groupNote(params: GroupParams): string {
+	const smooth = smoothPart(params);
+
+	if (params.id === 'toy') {
+		return `
     <div class="proto-bridge proto-bridge--toy" role="note">
-      <span class="proto-bridge__tag">Toy parameters — not production cryptography</span>
+      <span class="proto-bridge__tag">Toy parameters — this group is deliberately broken</span>
       <p>
-        This exhibit runs in the multiplicative group mod <code>p</code>, the secp256k1 <em>field</em>
+        You are running in the multiplicative group mod <code>p</code>, the secp256k1 <em>field</em>
         prime, with generator <code>g = 5</code> and exponents reduced mod <code>q = p − 1</code>.
-        That is <strong>not a prime-order group</strong>:
-        <code>p − 1 = 2 · 3 · 7 · 13441 · q′</code> with <code>q′</code> a 237-bit prime. Both Schnorr
-        and Pedersen are analysed over groups of <em>prime</em> order, so the security argument you
-        will read below does not transfer to these parameters as stated.
+        The modulus is a respectable 256 bits, and that is exactly the trap: <strong>size is not the
+        property that matters here</strong>. What matters is that this is
+        <strong>not a prime-order group</strong> —
+        <code>p − 1 = 2 · 3 · 7 · 13441 · q′</code>, with <code>q′</code> a 237-bit prime.
       </p>
       <p>
-        The gap is not theoretical. Because 2, 3, 7 and 13441 divide the group order, the small
-        subgroups leak: Pohlig–Hellman recovers <code>x mod 2</code>, <code>x mod 3</code>,
-        <code>x mod 7</code> and <code>x mod 13441</code> from the public key <code>y</code> alone —
-        roughly <strong>19 bits of the secret</strong>, with no proof transcript and no interaction.
-        A real deployment uses a group of prime order <code>q</code> (a Schnorr subgroup, or an
-        elliptic curve such as secp256k1's <em>curve</em> group), where no such factors exist.
+        Because 2, 3, 7 and 13441 divide the group order, Pohlig–Hellman solves a discrete log
+        inside each of those small subgroups and glues the answers together with the Chinese
+        remainder theorem. That hands an attacker
+        <code>x mod ${smooth.toString()}</code> — <strong>19.11 bits of the secret</strong> — from
+        the public key <code>y</code> alone. No transcript, no interaction, no proof needed, and it
+        finishes in under a millisecond in this tab.
+      </p>
+      <p>
+        <strong>So this exhibit does not have the zero-knowledge property it is teaching.</strong>
+        Zero knowledge is a statement about what the <em>transcript</em> reveals, and the transcript
+        here is fine — but the public key was already leaking before the protocol started. Press the
+        button below and watch it happen, then switch to the safe group and press it again.
+      </p>
+      <p class="proto-meta">
+        We keep the toy group because you can follow its arithmetic by hand: 13441 is small enough to
+        search on paper, which is the whole reason the attack is legible. Real deployments use a
+        group of prime order — a Schnorr subgroup, or an elliptic curve such as secp256k1's
+        <em>curve</em> group — where no such factors exist to leak through.
       </p>
     </div>
   `;
+	}
+
+	return `
+    <div class="proto-bridge proto-bridge--safe" role="note">
+      <span class="proto-bridge__tag">Safe parameters — RFC 3526 MODP Group 14</span>
+      <p>
+        You are running in a real, standardised group: a <strong>2048-bit safe prime</strong>
+        <code>p = 2q + 1</code> from RFC 3526 §3 (IKE/IPsec "Group 14"), with <code>g = 2</code>
+        generating the subgroup of <strong>prime order <code>q</code></strong> (2047 bits). Prime
+        order is precisely the precondition the Schnorr and Pedersen security arguments are stated
+        under, and here it holds.
+      </p>
+      <p>
+        The protocol code is byte-for-byte the same as in the toy group — only the parameters
+        changed. Run the same Pohlig–Hellman attack below and it recovers <strong>zero bits</strong>:
+        <code>q</code> has no small factors to project into, so the only subgroup available is the
+        whole 2047-bit one, and searching it costs about 2<sup>1023</sup> operations.
+      </p>
+      <p class="proto-meta">
+        <strong>Be precise about the strength.</strong> ${escapeHtml(params.securityNote)}
+        And nothing here is constant-time or side-channel hardened — this is a teaching exhibit
+        running BigInt in a browser tab, not a library you should deploy.
+      </p>
+    </div>
+  `;
+}
+
+// --- the live leak lab ------------------------------------------------------
+/**
+ * Makes the leak demonstrable instead of merely disclosed.
+ *
+ * The learner presses a button; the page runs a genuine Pohlig–Hellman attack
+ * against the public value currently on screen, using nothing but that value and
+ * the public parameters. Every figure rendered comes back from that run — the
+ * per-factor residues, the step counts, the timings, and the bit total. The
+ * result is then checked against the secret the demo happens to know, so the
+ * learner can see that the recovery is real rather than printed.
+ */
+interface LeakLab {
+	el: HTMLElement;
+	reset(): void;
+}
+
+function createLeakLab(opts: {
+	/** heading shown on the lab card */
+	title: string;
+	/** name of the public value under attack, e.g. "y" or "h" */
+	publicName: string;
+	/** name of the secret it commits to, e.g. "x" or "τ" */
+	secretName: string;
+	/** current public value, or null if none has been generated yet */
+	getPublic: () => bigint | null;
+	/** the true secret, used ONLY to confirm the recovery afterwards */
+	getSecret: () => bigint | null;
+	getParams: () => GroupParams;
+}): LeakLab {
+	const card = el('div', 'leak-lab panel-card');
+	card.innerHTML = `
+    <div class="leak-lab__head">
+      <div>
+        <h3 class="proto-h3">Extract the secret from <code>${opts.publicName}</code> alone</h3>
+        <p class="proto-meta leak-lab__sub"></p>
+      </div>
+      <button type="button" class="action-button leak-lab__run">Run Pohlig–Hellman</button>
+    </div>
+    <div class="leak-lab__out" role="status" aria-live="polite"></div>
+  `;
+	const runBtn = card.querySelector('.leak-lab__run') as HTMLButtonElement;
+	const out = card.querySelector('.leak-lab__out') as HTMLElement;
+	const sub = card.querySelector('.leak-lab__sub') as HTMLElement;
+
+	function paintSub(): void {
+		const p = opts.getParams();
+		sub.innerHTML =
+			p.id === 'toy'
+				? `The attack is given <code>${opts.publicName}</code> and the public parameters. It is not given <code>${opts.secretName}</code>.`
+				: `Same attack, same code, same button — now against the prime-order group.`;
+	}
+
+	function reset(): void {
+		out.innerHTML = '';
+		paintSub();
+	}
+
+	function render(leak: LeakResult, secret: bigint | null): void {
+		const p = opts.getParams();
+		const rows = leak.perFactor
+			.map((f) => {
+				const power = f.factor ** BigInt(f.exponent);
+				const label =
+					f.factor > 1_000_000n
+						? `${shortHex(f.factor, 6)} <span class="leak-lab__bits">(${Math.round(f.bits)} bits)</span>`
+						: power.toString();
+				if (!f.feasible) {
+					return `<tr class="leak-row leak-row--safe">
+            <td class="mono-inline">${label}</td>
+            <td class="leak-row__verdict">not attempted</td>
+            <td class="mono-inline">≈ 2<sup>${Math.round(f.log2Steps)}</sup> steps</td>
+            <td>—</td>
+          </tr>`;
+				}
+				return `<tr class="leak-row leak-row--broken">
+          <td class="mono-inline">${label}</td>
+          <td class="leak-row__verdict">${opts.secretName} mod ${power.toString()} = <strong>${f.residue?.toString() ?? '—'}</strong></td>
+          <td class="mono-inline">${f.bsgsSteps.toLocaleString()} steps</td>
+          <td class="mono-inline">${f.ms.toFixed(2)} ms</td>
+        </tr>`;
+			})
+			.join('');
+
+		const pct = ((leak.bitsRecovered / leak.bitsTotal) * 100).toFixed(1);
+
+		// Confirm the recovery against the secret the demo holds. This is the only
+		// place the secret is touched, and it is touched to CHECK the attack, not
+		// to perform it.
+		let confirm = '';
+		if (secret !== null && leak.leaked) {
+			const truth = secret % leak.modulus;
+			const matches = truth === leak.residue;
+			confirm = `<div class="proto-verdict ${matches ? 'is-bad' : 'is-ok'} leak-lab__verdict">
+        <span class="proto-verdict__mark" aria-hidden="true">${matches ? '✗' : '✓'}</span>
+        <div>${
+					matches
+						? `<strong>Recovered, and confirmed correct.</strong> The attack said
+               <code>${opts.secretName} mod ${leak.modulus.toString()} = ${leak.residue.toString()}</code>;
+               the real secret gives <code>${truth.toString()}</code>. Same number — so those
+               ${leak.bitsRecovered.toFixed(2)} bits genuinely fell out of the public value.`
+						: `<strong>Recovery disagreed with the secret.</strong> The attack returned
+               <code>${leak.residue.toString()}</code> but the true residue is
+               <code>${truth.toString()}</code>. That is a bug in this demo, not a property of the
+               group — please report it.`
+				}</div>
+      </div>`;
+		} else if (leak.leaked) {
+			// Recovered something, but the demo no longer holds the secret to check
+			// it against. Say that, rather than implying a confirmation we can't make.
+			confirm = `<div class="proto-verdict is-bad leak-lab__verdict">
+        <span class="proto-verdict__mark" aria-hidden="true">✗</span>
+        <div><strong>Recovered ${leak.bitsRecovered.toFixed(2)} bits.</strong> The attack returns
+        <code>${opts.secretName} mod ${leak.modulus.toString()} = ${leak.residue.toString()}</code>
+        from <code>${opts.publicName}</code> alone. This panel destroyed
+        <code>${opts.secretName}</code>, so there is no stored copy left to cross-check against —
+        which is the point: destroying the trapdoor did nothing to stop this, because the leak comes
+        from the published value, not from the secret being kept.</div>
+      </div>`;
+		} else if (!leak.leaked) {
+			const probe = legendreProbe(opts.getPublic() as bigint, p);
+			confirm = `<div class="proto-verdict is-ok leak-lab__verdict">
+        <span class="proto-verdict__mark" aria-hidden="true">✓</span>
+        <div><strong>Nothing recovered.</strong> The group order has no factor small enough to
+        attack, so there is no subgroup to project into and the attack returns empty-handed.
+        Even the one free computation a safe prime allows — the Legendre symbol
+        <code>${opts.publicName}<sup>(p−1)/2</sup> mod p</code>, computed just now, equal to
+        <code>${probe.value.toString()}</code> — comes out as 1 for
+        <em>every</em> public key in this subgroup, so it distinguishes nothing.</div>
+      </div>`;
+		}
+
+		out.innerHTML = `
+      <table class="leak-table">
+        <caption class="sr-only">Pohlig–Hellman result per prime factor of the group order</caption>
+        <thead>
+          <tr><th scope="col">Factor of q</th><th scope="col">Result</th><th scope="col">Cost</th><th scope="col">Time</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <dl class="proto-kv leak-lab__totals">
+        <div><dt>Bits recovered</dt><dd class="mono-inline"><strong>${leak.bitsRecovered.toFixed(2)}</strong> of ${leak.bitsTotal.toFixed(0)} (${pct}%)</dd></div>
+        <div><dt>Search space left</dt><dd class="mono-inline">2<sup>${leak.bitsRemaining.toFixed(0)}</sup></dd></div>
+        <div><dt>Total time</dt><dd class="mono-inline">${leak.totalMs.toFixed(2)} ms, in this tab</dd></div>
+      </dl>
+      ${confirm}
+      <p class="proto-meta leak-lab__footnote">
+        ${
+					p.id === 'toy'
+						? `Recovering the remaining 2<sup>${leak.bitsRemaining.toFixed(0)}</sup> would need a real
+             discrete-log break, so the key is not <em>fully</em> broken — but "leaks 19 bits of the
+             secret with no interaction" is not zero knowledge either.`
+						: `The factorisation of <code>q</code> is a published property of these standardised
+             parameters, not something computed here — factoring a 2047-bit number in a browser tab
+             is not possible, and this demo will not pretend otherwise.`
+				}
+      </p>
+    `;
+	}
+
+	runBtn.addEventListener('click', () => {
+		const pub = opts.getPublic();
+		if (pub === null) {
+			out.innerHTML = `<p class="proto-note proto-note--warn">⚠ No public value yet — generate one first.</p>`;
+			return;
+		}
+		const params = opts.getParams();
+		const leak = pohligHellman(pub, params);
+		render(leak, opts.getSecret());
+	});
+
+	paintSub();
+	return { el: card, reset };
 }
 
 function renderProtocol(): HTMLElement {
@@ -518,7 +783,8 @@ function renderProtocol(): HTMLElement {
 	section.id = 'protocol';
 	section.setAttribute('aria-labelledby', 'protocol-heading');
 
-	let keypair: Keypair = newKeypair();
+	let params: GroupParams = activeGroup();
+	let keypair: Keypair = newKeypair(params);
 	let r: bigint | null = null;
 	let proof: Proof | null = null;
 	let progress = 0; // how many steps have been completed (0..4)
@@ -556,7 +822,16 @@ function renderProtocol(): HTMLElement {
       </p>
     </div>
 
-    ${toyParamsNote()}
+    <div class="proto-group-row" role="group" aria-label="Group parameters">
+      ${groupToggleHtml()}
+      <p class="proto-meta proto-group-row__hint">
+        Same protocol code, different parameters. Switching regenerates the keypair.
+      </p>
+    </div>
+
+    <div id="proto-group-note"></div>
+
+    <div id="proto-leak-slot"></div>
 
     <div class="proto-mode-row" role="group" aria-label="Protocol controls">
       <div class="proto-toggle" role="radiogroup" aria-label="Mode">
@@ -573,8 +848,9 @@ function renderProtocol(): HTMLElement {
     <div class="proto-params panel-card">
       <h3 class="proto-h3">Public parameters &amp; keys</h3>
       <dl class="proto-kv">
-        <div><dt>Generator <code>g</code></dt><dd class="mono-inline" title="${fullHex(G)}">${shortHex(G)}</dd></div>
-        <div><dt>Prime <code>p</code> (256-bit)</dt><dd class="mono-inline" title="${fullHex(P)}">${shortHex(P)}</dd></div>
+        <div><dt>Generator <code>g</code></dt><dd class="mono-inline" id="proto-g" title=""></dd></div>
+        <div><dt>Prime <code>p</code></dt><dd class="mono-inline" id="proto-p" title=""></dd></div>
+        <div><dt>Order of <code>&#10216;g&#10217;</code></dt><dd class="mono-inline" id="proto-q" title=""></dd></div>
         <div><dt>Public key <code>y = g<sup>x</sup> mod p</code></dt><dd class="mono-inline" id="proto-y" title=""></dd></div>
         <div class="proto-secret-row">
           <dt>Secret <code>x</code> <button type="button" class="proto-eye" id="proto-eye" aria-pressed="false">show</button></dt>
@@ -663,9 +939,11 @@ function renderProtocol(): HTMLElement {
         <code>c</code> from a hash of <code>t</code>, leaving no verifier to misbehave.
       </p>
       <p class="proto-sim-caveat">
-        And zero knowledge is a statement about the <em>transcript</em>, not about the public key. In this exhibit's
-        composite-order group the key itself already gives up about 19 bits of <code>x</code> — see the toy-parameter
-        note at the top of the panel.
+        And zero knowledge is a statement about the <em>transcript</em>, not about the public key. Under the
+        <strong>toy</strong> parameter set the key itself already gives up about 19 bits of <code>x</code> before the
+        protocol starts — the "Extract the secret" lab at the top of this panel demonstrates exactly that, live.
+        Under the <strong>safe</strong> parameter set the same lab comes back empty. The transcript argument above is
+        unchanged either way; what changes is whether the public key was leaking to begin with.
       </p>
       <p>
         The reason it's still sound is the order: when <code>t</code> is committed <em>first</em>, the simulator's trick stops working. The real prover has to know <code>x</code> to produce a valid <code>s</code> for <em>any</em> challenge Bob then sends.
@@ -675,6 +953,11 @@ function renderProtocol(): HTMLElement {
 
 	const yEl = section.querySelector('#proto-y') as HTMLElement;
 	const xEl = section.querySelector('#proto-x') as HTMLElement;
+	const gEl = section.querySelector('#proto-g') as HTMLElement;
+	const pEl = section.querySelector('#proto-p') as HTMLElement;
+	const qEl = section.querySelector('#proto-q') as HTMLElement;
+	const noteEl = section.querySelector('#proto-group-note') as HTMLElement;
+	const leakSlot = section.querySelector('#proto-leak-slot') as HTMLElement;
 	const eyeBtn = section.querySelector('#proto-eye') as HTMLButtonElement;
 	const resetBtn = section.querySelector('#proto-reset') as HTMLButtonElement;
 	const chSub = section.querySelector('#proto-ch-sub') as HTMLElement;
@@ -682,11 +965,31 @@ function renderProtocol(): HTMLElement {
 	const goBtns = section.querySelectorAll<HTMLButtonElement>('.proto-go');
 	const steps = section.querySelectorAll<HTMLElement>('.proto-step');
 
+	const leakLab = createLeakLab({
+		title: 'Extract the secret',
+		publicName: 'y',
+		secretName: 'x',
+		getPublic: () => keypair.y,
+		getSecret: () => keypair.x,
+		getParams: () => params,
+	});
+	leakSlot.appendChild(leakLab.el);
+
 	function paintKeys(): void {
+		gEl.textContent = shortHex(params.g);
+		gEl.title = fullHex(params.g);
+		pEl.textContent = `${shortHex(params.p)} (${params.pBits}-bit)`;
+		pEl.title = fullHex(params.p);
+		qEl.textContent = `${shortHex(params.q)} (${params.qBits}-bit, ${params.primeOrder ? 'prime' : 'composite'})`;
+		qEl.title = fullHex(params.q);
 		yEl.textContent = shortHex(keypair.y);
 		yEl.title = fullHex(keypair.y);
 		xEl.textContent = revealSecret ? shortHex(keypair.x) : '••••••••';
 		xEl.title = revealSecret ? fullHex(keypair.x) : 'hidden';
+	}
+
+	function paintNote(): void {
+		noteEl.innerHTML = groupNote(params);
 	}
 
 	function setStepState(step: number, body: string, state: 'pending' | 'done' = 'done'): void {
@@ -720,13 +1023,14 @@ function renderProtocol(): HTMLElement {
 	}
 
 	function fullReset(newKey = false): void {
-		if (newKey) keypair = newKeypair();
+		if (newKey) keypair = newKeypair(params);
 		r = null;
 		proof = null;
 		progress = 0;
 		runEpoch++;
 		clearFrom(1);
 		paintKeys();
+		leakLab.reset();
 		updateButtons();
 	}
 
@@ -739,7 +1043,7 @@ function renderProtocol(): HTMLElement {
 		if (n === 1) {
 			clearFrom(2);
 			const t0 = performance.now();
-			const out = schnorrCommit();
+			const out = schnorrCommit(params);
 			const dt = performance.now() - t0;
 			r = out.r;
 			proof = { t: out.t, c: 0n, s: 0n };
@@ -749,7 +1053,7 @@ function renderProtocol(): HTMLElement {
 				`<dl class="proto-kv">
           <div><dt><code>r</code> (secret)</dt><dd class="mono-inline" title="${fullHex(r)}">${shortHex(r)}</dd></div>
           <div><dt><code>t = g<sup>r</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(out.t)}">${shortHex(out.t)}</dd></div>
-        </dl><p class="proto-meta">${timing(dt)} — one 256-bit modular exponentiation.</p>`,
+        </dl><p class="proto-meta">${timing(dt)} — one ${params.pBits}-bit modular exponentiation.</p>`,
 			);
 		} else if (n === 2) {
 			if (proof === null) return;
@@ -760,12 +1064,13 @@ function renderProtocol(): HTMLElement {
 			const epoch = runEpoch;
 			const tSnap = proof.t;
 			const ySnap = keypair.y;
+			const pSnap = params;
 			try {
 				if (mode === 'fiat-shamir') {
-					c = await fiatShamirChallenge(ySnap, tSnap);
+					c = await fiatShamirChallenge(ySnap, tSnap, pSnap);
 					detail = `Fiat–Shamir: <code>c = SHA-256(g ‖ p ‖ y ‖ t) mod q</code>. No live verifier needed.`;
 				} else {
-					c = (randBig() % (Q - 1n)) + 1n;
+					c = randomChallenge(pSnap);
 					detail = `Interactive: Bob samples a fresh random <code>c</code>.`;
 				}
 			} catch (err) {
@@ -793,9 +1098,9 @@ function renderProtocol(): HTMLElement {
 		} else if (n === 3) {
 			if (proof === null || r === null) return;
 			clearFrom(4);
-			const effectiveX = honest ? keypair.x : (keypair.x + 1n) % Q;
+			const effectiveX = honest ? keypair.x : (keypair.x + 1n) % params.q;
 			const t0 = performance.now();
-			const s = schnorrRespond(r, proof.c, effectiveX);
+			const s = schnorrRespond(r, proof.c, effectiveX, params);
 			const dt = performance.now() - t0;
 			proof = { ...proof, s };
 			progress = 3;
@@ -811,9 +1116,9 @@ function renderProtocol(): HTMLElement {
 		} else if (n === 4) {
 			if (proof === null) return;
 			const t0 = performance.now();
-			const lhs = modpow(G, proof.s, P);
-			const rhs = (proof.t * modpow(keypair.y, proof.c, P)) % P;
-			const ok = schnorrVerify(keypair.y, proof);
+			const lhs = modpow(params.g, proof.s, params.p);
+			const rhs = (proof.t * modpow(keypair.y, proof.c, params.p)) % params.p;
+			const ok = schnorrVerify(keypair.y, proof, params);
 			const dt = performance.now() - t0;
 			progress = 4;
 			setStepState(
@@ -821,12 +1126,19 @@ function renderProtocol(): HTMLElement {
 				`<dl class="proto-kv">
           <div><dt><code>g<sup>s</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(lhs)}">${shortHex(lhs)}</dd></div>
           <div><dt><code>t · y<sup>c</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(rhs)}">${shortHex(rhs)}</dd></div>
-        </dl><p class="proto-meta">${timing(dt)} — two 256-bit modular exponentiations and a multiply.</p>`,
+        </dl><p class="proto-meta">${timing(dt)} — two ${params.pBits}-bit modular exponentiations and a multiply.</p>`,
 			);
 			verdict.hidden = false;
 			verdict.className = 'proto-verdict ' + (ok ? 'is-ok' : 'is-bad');
+			// Both branches are driven by `ok`, which is the return value of the real
+			// verifier running on this run's numbers. The two sides are printed above
+			// so the reader can check the comparison rather than take the banner's word.
+			const zkCaveat = params.primeOrder
+				? `having learned nothing about it from the transcript.`
+				: `having learned nothing about it <em>from the transcript</em> — though in this toy group
+             the public key had already leaked ~19 bits before the protocol began.`;
 			verdict.innerHTML = ok
-				? `<span class="proto-verdict__mark" aria-hidden="true">✓</span><div><strong>Proof accepted.</strong> Bob is now convinced Alice knows <code>x</code>, having learned nothing about it.</div>`
+				? `<span class="proto-verdict__mark" aria-hidden="true">✓</span><div><strong>Proof accepted.</strong> Bob is now convinced Alice knows <code>x</code>, ${zkCaveat}</div>`
 				: `<span class="proto-verdict__mark" aria-hidden="true">✗</span><div><strong>Proof rejected.</strong> The two sides do not match — Alice cannot have known the real <code>x</code>.</div>`;
 		}
 		updateButtons();
@@ -884,6 +1196,14 @@ function renderProtocol(): HTMLElement {
 
 	resetBtn.addEventListener('click', () => fullReset(true));
 
+	wireGroupToggle(section, (next) => {
+		params = next;
+		paintNote();
+		// A keypair belongs to its group; carrying one across would be nonsense.
+		fullReset(true);
+	});
+
+	paintNote();
 	paintKeys();
 	updateButtons();
 
@@ -900,8 +1220,15 @@ function renderTrustedSetup(): HTMLElement {
 	section.id = 'setup';
 	section.setAttribute('aria-labelledby', 'setup-heading');
 
-	let crs: Crs | null = null;
-	let destroyed = false; // whether the operator destroyed the toxic waste
+	let params: GroupParams = activeGroup();
+	// The ceremony's published output. `tau` is null once the operator destroys
+	// it — the trapdoor is genuinely dropped from state, not merely hidden behind
+	// bullet characters, so "destroyed" on screen means destroyed in memory.
+	let crs: { h: bigint; tau: bigint | null } | null = null;
+	// Must agree with which toggle button is rendered `is-active` below. It did
+	// not: the markup shipped "Destroy τ (honest)" pre-selected while this said
+	// false, so an untouched panel ran the malicious path under an honest label.
+	let destroyed = true;
 	let commitment: Commitment | null = null;
 	const TRUE_VALUE = 42n;
 	const FALSE_VALUE = 999n;
@@ -921,13 +1248,22 @@ function renderTrustedSetup(): HTMLElement {
         </p>
         <p class="section-footnote proto-meta">
           Real primitive: a Pedersen commitment <code>C = g<sup>m</sup>·h<sup>s</sup> mod p</code>
-          where <code>h = g<sup>τ</sup></code>. Verified in your browser; the same 256-bit group as
-          the live proof above.
+          where <code>h = g<sup>τ</sup></code>. Verified in your browser, in whichever group you
+          select — the same parameter choice as the live proof above.
         </p>
       </div>
     </div>
 
-    ${toyParamsNote()}
+    <div class="proto-group-row" role="group" aria-label="Group parameters">
+      ${groupToggleHtml()}
+      <p class="proto-meta proto-group-row__hint">
+        Shared with the proof panel above. Switching restarts the ceremony.
+      </p>
+    </div>
+
+    <div id="setup-group-note"></div>
+
+    <div id="setup-leak-slot"></div>
 
     <div class="proto-mode-row" role="group" aria-label="Ceremony controls">
       <div class="proto-toggle" role="radiogroup" aria-label="Toxic waste">
@@ -1009,6 +1345,23 @@ function renderTrustedSetup(): HTMLElement {
 	const steps = section.querySelectorAll<HTMLElement>('.proto-step');
 	const verdict = section.querySelector('#setup-verdict') as HTMLElement;
 	const resetBtn = section.querySelector('#setup-reset') as HTMLButtonElement;
+	const noteEl = section.querySelector('#setup-group-note') as HTMLElement;
+	const leakSlot = section.querySelector('#setup-leak-slot') as HTMLElement;
+
+	// The CRS h = g^τ is a public key for the trapdoor, so it leaks exactly the
+	// way the Schnorr public key does. Worth showing here too: in the toy group
+	// the "toxic waste" is partly public the moment the ceremony publishes h.
+	const leakLab = createLeakLab({
+		title: 'Extract the trapdoor',
+		publicName: 'h',
+		secretName: 'τ',
+		getPublic: () => crs?.h ?? null,
+		// Only used to confirm the attack; null once τ is genuinely destroyed, in
+		// which case the lab reports the recovery without a cross-check.
+		getSecret: () => crs?.tau ?? null,
+		getParams: () => params,
+	});
+	leakSlot.appendChild(leakLab.el);
 
 	let progress = 0;
 
@@ -1041,29 +1394,39 @@ function renderTrustedSetup(): HTMLElement {
 		commitment = null;
 		progress = 0;
 		clearFrom(1);
+		leakLab.reset();
 		updateButtons();
+	}
+
+	function paintNote(): void {
+		noteEl.innerHTML = groupNote(params);
 	}
 
 	function runStep(n: number): void {
 		if (n === 1) {
 			clearFrom(2);
-			crs = runCeremony();
+			const fresh = runCeremony(params);
+			// Destruction is real: when the operator chooses to destroy the waste we
+			// never store τ, so nothing downstream can reach for it. Previously the
+			// value stayed in memory and was merely rendered as bullets.
+			crs = { h: fresh.h, tau: destroyed ? null : fresh.tau };
 			commitment = null;
 			progress = 1;
+			leakLab.reset();
 			const wasteLine = destroyed
-				? `<p class="proto-note">✓ <code>τ</code> destroyed. Only the public CRS <code>h</code> survives.</p>`
+				? `<p class="proto-note">✓ <code>τ</code> destroyed — dropped from this page's state, not just hidden. Only the public CRS <code>h</code> survives.</p>`
 				: `<p class="proto-note proto-note--warn">⚠ <code>τ</code> kept. The operator now holds a permanent backdoor.</p>`;
 			setBody(
 				1,
 				`<dl class="proto-kv">
-          <div><dt><code>τ</code> (toxic waste)</dt><dd class="mono-inline" title="${fullHex(crs.tau)}">${destroyed ? '•••••••• (destroyed)' : shortHex(crs.tau)}</dd></div>
+          <div><dt><code>τ</code> (toxic waste)</dt><dd class="mono-inline"${crs.tau === null ? '' : ` title="${fullHex(crs.tau)}"`}>${crs.tau === null ? '•••••••• (destroyed)' : shortHex(crs.tau)}</dd></div>
           <div><dt><code>h = g<sup>τ</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(crs.h)}">${shortHex(crs.h)}</dd></div>
         </dl>${wasteLine}`,
 			);
 		} else if (n === 2) {
 			if (!crs) return;
 			clearFrom(3);
-			commitment = commitValue(crs.h, TRUE_VALUE);
+			commitment = commitValue(crs.h, TRUE_VALUE, params);
 			progress = 2;
 			setBody(
 				2,
@@ -1077,13 +1440,13 @@ function renderTrustedSetup(): HTMLElement {
 			if (!crs || !commitment) return;
 			clearFrom(4);
 			progress = 3;
-			if (destroyed) {
+			if (crs.tau === null) {
 				setBody(
 					3,
-					`<p class="proto-note proto-note--warn">⚠ <code>τ</code> was destroyed, so <code>s′ = s + (m − m′)·τ<sup>−1</sup></code> cannot be computed. The best you can do is guess randomness for <code>${FALSE_VALUE}</code> — which will not match <code>C</code>.</p>`,
+					`<p class="proto-note proto-note--warn">⚠ <code>τ</code> was destroyed, so <code>s′ = s + (m − m′)·τ<sup>−1</sup></code> cannot be computed — this page does not hold the value any more, so the forgery is not merely disallowed, it is unavailable. The best you can do is guess randomness for <code>${FALSE_VALUE}</code>, which will not match <code>C</code>.</p>`,
 				);
 			} else {
-				const forgedS = forgeOpening(crs.tau, commitment.m, commitment.s, FALSE_VALUE);
+				const forgedS = forgeOpening(crs.tau, commitment.m, commitment.s, FALSE_VALUE, params);
 				(commitment as Commitment & { forgedS?: bigint }).forgedS = forgedS;
 				setBody(
 					3,
@@ -1096,20 +1459,30 @@ function renderTrustedSetup(): HTMLElement {
 		} else if (n === 4) {
 			if (!crs || !commitment) return;
 			progress = 4;
+			const noTrapdoor = crs.tau === null;
 			let sTried: bigint;
-			if (destroyed) {
-				// No trapdoor: attacker can only guess. Model that as a wrong s; it fails.
-				sTried = (commitment.s + 1n) % Q;
+			if (noTrapdoor) {
+				// No trapdoor available: the attacker can only guess randomness. We
+				// model one guess (s + 1). It is a stand-in for "any value not derived
+				// from τ" — and the verification below is a real check on it, not a
+				// scripted rejection.
+				sTried = (commitment.s + 1n) % params.q;
 			} else {
 				sTried = (commitment as Commitment & { forgedS?: bigint }).forgedS ?? commitment.s;
 			}
-			const accepted = verifyOpening(crs.h, commitment.c, FALSE_VALUE, sTried);
+			const recomputed =
+				(modpow(params.g, FALSE_VALUE, params.p) * modpow(crs.h, sTried, params.p)) % params.p;
+			const accepted = verifyOpening(crs.h, commitment.c, FALSE_VALUE, sTried, params);
 			setBody(
 				4,
 				`<dl class="proto-kv">
           <div><dt><code>C</code></dt><dd class="mono-inline" title="${fullHex(commitment.c)}">${shortHex(commitment.c)}</dd></div>
-          <div><dt><code>g<sup>${FALSE_VALUE}</sup>·h<sup>s${destroyed ? '?' : '′'}</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex((modpow(G, FALSE_VALUE, P) * modpow(crs.h, sTried, P)) % P)}">${shortHex((modpow(G, FALSE_VALUE, P) * modpow(crs.h, sTried, P)) % P)}</dd></div>
-        </dl>`,
+          <div><dt><code>g<sup>${FALSE_VALUE}</sup>·h<sup>s${noTrapdoor ? '?' : '′'}</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(recomputed)}">${shortHex(recomputed)}</dd></div>
+        </dl><p class="proto-meta">${
+					noTrapdoor
+						? `The guessed randomness is not derived from <code>τ</code>, so the two lines differ. Compare them yourself.`
+						: `Back-solved from <code>τ</code>, so the two lines are identical. Compare them yourself.`
+				}</p>`,
 			);
 			verdict.hidden = false;
 			verdict.className = 'proto-verdict ' + (accepted ? 'is-bad' : 'is-ok');
@@ -1139,6 +1512,13 @@ function renderTrustedSetup(): HTMLElement {
 
 	resetBtn.addEventListener('click', fullReset);
 
+	wireGroupToggle(section, (next) => {
+		params = next;
+		paintNote();
+		fullReset();
+	});
+
+	paintNote();
 	updateButtons();
 	return section;
 }

@@ -5,24 +5,31 @@
 // logarithm x such that y = g^x mod p. It is the cleanest example of the
 // {commit, challenge, response} structure that lies under every modern SNARK.
 //
-// The group parameters are educational-grade and, importantly, NOT prime-order:
-// see the note on Q below. Schnorr is analysed over a group of prime order, so
-// the textbook security argument does not transfer to these parameters. That is
-// disclosed to the learner in the rendered UI (`toyParamsNote` in ui.ts) rather
-// than only here, because the weakness is observable in the exhibit itself.
-// Do not use for production cryptography.
+// The protocol code below is parameterised by the group (see groups.ts) and is
+// byte-for-byte the same in both parameter sets the page offers:
+//
+//   • TOY_GROUP  — 256-bit, COMPOSITE order. Small factors of the group order
+//     leak x mod 564522 (~19.1 bits) from the public key alone, before any
+//     proof runs. That is not a bug in this file; it is a property of those
+//     parameters, and pohlig.ts demonstrates it live on the page.
+//   • SAFE_GROUP — 2048-bit safe prime, PRIME-order subgroup. The same attack
+//     recovers nothing.
+//
+// The contrast is the lesson: identical protocol, different parameters,
+// different outcome. Neither parameter set makes this file production
+// cryptography — there is no constant-time arithmetic here, among other things.
 
-// secp256k1 field prime (well-known 256-bit prime).
-export const P: bigint = (1n << 256n) - (1n << 32n) - 977n;
-// 5 is a primitive root mod P, so <g> is the whole multiplicative group.
-export const G: bigint = 5n;
-// Group order used for exponents. This is the true order of <g>, but it is
-// COMPOSITE: P - 1 = 2 * 3 * 7 * 13441 * q', with q' a 237-bit prime. Those
-// small factors mean Pohlig-Hellman recovers x mod 2, 3, 7 and 13441 — about
-// 19 bits of the secret — from the public key y alone, before any proof runs.
-// A real Schnorr deployment picks a subgroup of PRIME order Q dividing P-1
-// (or an elliptic-curve group), where no such factors exist to leak through.
-export const Q: bigint = P - 1n;
+import { TOY_GROUP, type GroupParams } from './groups.ts';
+
+export { TOY_GROUP, SAFE_GROUP, GROUPS, type GroupParams } from './groups.ts';
+
+/**
+ * Default parameters, kept as module-level exports so existing call sites and
+ * tests keep working. These are the TOY parameters — deliberately weak.
+ */
+export const P: bigint = TOY_GROUP.p;
+export const G: bigint = TOY_GROUP.g;
+export const Q: bigint = TOY_GROUP.q;
 
 export function modpow(base: bigint, exp: bigint, mod: bigint): bigint {
 	if (mod <= 0n) throw new Error('modulus must be positive');
@@ -47,6 +54,14 @@ export function randBig(bits = 256): bigint {
 	return v;
 }
 
+/**
+ * A uniform-ish exponent in [1, q). Draws 128 bits beyond the modulus so the
+ * reduction bias is negligible rather than merely small.
+ */
+function randExponent(params: GroupParams): bigint {
+	return (randBig(params.qBits + 128) % (params.q - 1n)) + 1n;
+}
+
 export interface Proof {
 	t: bigint; // commitment g^r
 	c: bigint; // challenge
@@ -58,40 +73,56 @@ export interface Keypair {
 	y: bigint; // public g^x
 }
 
-export function newKeypair(): Keypair {
-	const x = (randBig() % (Q - 1n)) + 1n;
-	const y = modpow(G, x, P);
+export function newKeypair(params: GroupParams = TOY_GROUP): Keypair {
+	const x = randExponent(params);
+	const y = modpow(params.g, x, params.p);
 	return { x, y };
 }
 
-export function commit(): { r: bigint; t: bigint } {
-	const r = (randBig() % (Q - 1n)) + 1n;
-	const t = modpow(G, r, P);
+export function commit(params: GroupParams = TOY_GROUP): { r: bigint; t: bigint } {
+	const r = randExponent(params);
+	const t = modpow(params.g, r, params.p);
 	return { r, t };
 }
 
-export function respond(r: bigint, c: bigint, x: bigint): bigint {
-	return ((r + ((c * x) % Q)) % Q + Q) % Q;
+export function respond(
+	r: bigint,
+	c: bigint,
+	x: bigint,
+	params: GroupParams = TOY_GROUP,
+): bigint {
+	const q = params.q;
+	return ((((r + ((c * x) % q)) % q) + q) % q);
 }
 
-export function verify(y: bigint, proof: Proof): boolean {
-	const lhs = modpow(G, proof.s, P);
-	const rhs = (proof.t * modpow(y, proof.c, P)) % P;
+export function verify(y: bigint, proof: Proof, params: GroupParams = TOY_GROUP): boolean {
+	const { g, p } = params;
+	const lhs = modpow(g, proof.s, p);
+	const rhs = (proof.t * modpow(y, proof.c, p)) % p;
 	return lhs === rhs;
+}
+
+/** Sample a challenge the way an interactive verifier would. */
+export function randomChallenge(params: GroupParams = TOY_GROUP): bigint {
+	return randExponent(params);
 }
 
 // Fiat-Shamir: derive the challenge as H(g || p || y || t) instead of letting
 // the verifier pick it. Turns the interactive sigma protocol into a
 // non-interactive zero-knowledge proof.
-export async function fiatShamirChallenge(y: bigint, t: bigint): Promise<bigint> {
+export async function fiatShamirChallenge(
+	y: bigint,
+	t: bigint,
+	params: GroupParams = TOY_GROUP,
+): Promise<bigint> {
 	const payload = new TextEncoder().encode(
-		[G.toString(16), P.toString(16), y.toString(16), t.toString(16)].join('|'),
+		[params.g.toString(16), params.p.toString(16), y.toString(16), t.toString(16)].join('|'),
 	);
 	const digest = await crypto.subtle.digest('SHA-256', payload);
 	const arr = new Uint8Array(digest);
 	let v = 0n;
 	for (const b of arr) v = (v << 8n) | BigInt(b);
-	return v % Q;
+	return v % params.q;
 }
 
 // helper for the UI: shortened hex

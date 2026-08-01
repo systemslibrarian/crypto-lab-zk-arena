@@ -7,10 +7,14 @@ import {
 	newKeypair,
 	P,
 	Q,
+	randomChallenge,
 	respond,
+	SAFE_GROUP,
 	shortHex,
+	TOY_GROUP,
 	verify,
 } from './schnorr.ts';
+import { modInverse } from './pohlig.ts';
 
 describe('modpow', () => {
 	it('agrees with native exponentiation for small inputs', () => {
@@ -73,6 +77,79 @@ describe('Schnorr identification', () => {
 		const s = respond(r, c, x);
 		expect(verify(y, { t, c, s })).toBe(true);
 	});
+});
+
+// The point of having two parameter sets is that the protocol code is the same
+// in both. These run the identical sequence against each, so a regression that
+// only shows up at one size cannot hide.
+describe('same protocol, both parameter sets', () => {
+	for (const params of [TOY_GROUP, SAFE_GROUP]) {
+		it(`${params.id}: accepts an honest interactive proof`, () => {
+			const { x, y } = newKeypair(params);
+			const { r, t } = commit(params);
+			const c = randomChallenge(params);
+			const s = respond(r, c, x, params);
+			expect(verify(y, { t, c, s }, params)).toBe(true);
+		});
+
+		it(`${params.id}: accepts an honest Fiat–Shamir proof`, async () => {
+			const { x, y } = newKeypair(params);
+			const { r, t } = commit(params);
+			const c = await fiatShamirChallenge(y, t, params);
+			const s = respond(r, c, x, params);
+			expect(verify(y, { t, c, s }, params)).toBe(true);
+		});
+
+		it(`${params.id}: rejects the wrong secret`, () => {
+			const { x, y } = newKeypair(params);
+			const { r, t } = commit(params);
+			const c = randomChallenge(params);
+			const s = respond(r, c, (x + 1n) % params.q, params);
+			expect(verify(y, { t, c, s }, params)).toBe(false);
+		});
+
+		it(`${params.id}: rejects a tampered response`, () => {
+			const { x, y } = newKeypair(params);
+			const { r, t } = commit(params);
+			const c = randomChallenge(params);
+			const s = respond(r, c, x, params);
+			expect(verify(y, { t, c, s: (s + 1n) % params.q }, params)).toBe(false);
+		});
+
+		it(`${params.id}: rejects a tampered commitment`, () => {
+			const { x, y } = newKeypair(params);
+			const { r, t } = commit(params);
+			const c = randomChallenge(params);
+			const s = respond(r, c, x, params);
+			expect(verify(y, { t: (t * 2n) % params.p, c, s }, params)).toBe(false);
+		});
+
+		it(`${params.id}: rejects a replayed proof under a fresh challenge`, () => {
+			// Soundness: a transcript valid for c is worthless for c' ≠ c.
+			const { x, y } = newKeypair(params);
+			const { r, t } = commit(params);
+			const c = randomChallenge(params);
+			const s = respond(r, c, x, params);
+			const cPrime = (c + 1n) % params.q;
+			expect(verify(y, { t, c: cPrime, s }, params)).toBe(false);
+		});
+
+		it(`${params.id}: the HVZK simulator produces an accepting transcript`, () => {
+			// Pick c and s first, then solve for t = g^s · y^(-c). This is the
+			// argument the page makes in prose; here it is executed.
+			const { y } = newKeypair(params);
+			const c = randomChallenge(params);
+			const s = randomChallenge(params);
+			const yInv = modInverse(modpow(y, c, params.p), params.p);
+			const t = (modpow(params.g, s, params.p) * yInv) % params.p;
+			expect(verify(y, { t, c, s }, params)).toBe(true);
+		});
+
+		it(`${params.id}: an all-zero proof is rejected`, () => {
+			const { y } = newKeypair(params);
+			expect(verify(y, { t: 0n, c: 0n, s: 0n }, params)).toBe(false);
+		});
+	}
 });
 
 describe('shortHex', () => {
