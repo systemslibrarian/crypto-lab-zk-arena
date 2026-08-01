@@ -168,16 +168,16 @@ export const MILESTONES: Milestone[] = [
 		note: 'First end-to-end SNARK toolchain (Parno et al.). The moment SNARKs crossed from "theoretical" to "could run on a real computer".',
 	},
 	{
-		year: 2014,
-		family: 'SNARK',
-		title: 'Zcash launches',
-		note: 'First major production SNARK deployment, with the famous Sprout multi-party setup ceremony to dilute toxic-waste risk.',
-	},
-	{
 		year: 2016,
 		family: 'SNARK',
 		title: 'Groth16',
 		note: 'Smallest known practical SNARK proof (~128 B) and pairing-based constant-time verification. Still the gold standard for proof size.',
+	},
+	{
+		year: 2016,
+		family: 'SNARK',
+		title: 'Zcash launches',
+		note: 'First major production SNARK deployment (mainnet 28 October 2016), with the famous Sprout multi-party setup ceremony to dilute toxic-waste risk.',
 	},
 	{
 		year: 2018,
