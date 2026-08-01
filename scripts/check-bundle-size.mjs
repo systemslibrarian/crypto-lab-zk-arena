@@ -9,11 +9,33 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, '..', 'dist');
 
 const BUDGETS = {
-	// Raised from 16 KB: added the plain-language primer, first-use glossary, and
-	// a full interactive trusted-setup exhibit (a real Pedersen-commitment
-	// ceremony with a runnable toxic-waste forgery). That is genuine teaching
-	// surface, not bloat; 20 KB keeps a firm ceiling with modest headroom.
-	js: 20 * 1024,
+	// Raised from 20 KB (which had itself been raised from 16 KB, for the
+	// plain-language primer, the first-use glossary, and the interactive
+	// trusted-setup exhibit).
+	//
+	// What forced this raise: the safe-parameter-set feature — src/groups.ts,
+	// src/pohlig.ts, and the group toggle + leak lab in src/ui.ts. The lab had
+	// been demonstrating zero knowledge in a group whose composite order leaks
+	// ~19 bits of the secret from the public key alone; the fix is a second,
+	// real parameter set (RFC 3526 MODP Group 14) plus a live Pohlig-Hellman
+	// attack that shows the toy group giving those bits up and the safe group
+	// refusing to. That put JS at 23.88 KB gz.
+	//
+	// Cheaper options were looked for first, and mostly weren't there. The one
+	// real win was dropping Vite's modulePreload polyfill (see vite.config.ts):
+	// dead code in a single-entry build with no dynamic imports, worth
+	// 24.15 KB -> 23.88 KB. Beyond that: no dead code (tsc runs with
+	// noUnusedLocals), no duplicated strings, every data.ts export reachable,
+	// and the 2048-bit prime is already in its most compact auditable form (the
+	// RFC's own hex, ~0.3 KB gz). About 0.4 KB gz sits in the leading
+	// indentation of the HTML template literals, recoverable only by adding a
+	// build-time source rewrite — not worth the correctness surface for 1.6%,
+	// and it would not have reached 20 KB anyway.
+	//
+	// 25 KB leaves ~1.1 KB over the real figure: enough that a copy edit won't
+	// redden CI, tight enough that the next exhibit has to come back here and
+	// justify itself.
+	js: 25 * 1024,
 	css: 8 * 1024,
 	// Raised from 2 KB: the mandated shared crypto-lab header (self-contained
 	// inline styles + markup) is ~2.5 KB gz on its own, so 2 KB is no longer
