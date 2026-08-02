@@ -1443,7 +1443,7 @@ function renderTrustedSetup(): HTMLElement {
 			if (crs.tau === null) {
 				setBody(
 					3,
-					`<p class="proto-note proto-note--warn">⚠ <code>τ</code> was destroyed, so <code>s′ = s + (m − m′)·τ<sup>−1</sup></code> cannot be computed — this page does not hold the value any more, so the forgery is not merely disallowed, it is unavailable. The best you can do is guess randomness for <code>${FALSE_VALUE}</code>, which will not match <code>C</code>.</p>`,
+					`<p class="proto-note proto-note--warn">⚠ <code>τ</code> was destroyed, so <code>s′ = s + (m − m′)·τ<sup>−1</sup></code> cannot be computed. To make a failed attempt concrete, the demo will try <code>s? = s + 1 mod q</code> as one explicit guess for opening <code>${FALSE_VALUE}</code>; the verifier, not this narration, decides whether it matches <code>C</code>.</p>`,
 				);
 			} else {
 				const forgedS = forgeOpening(crs.tau, commitment.m, commitment.s, FALSE_VALUE, params);
@@ -1477,6 +1477,7 @@ function renderTrustedSetup(): HTMLElement {
 				4,
 				`<dl class="proto-kv">
           <div><dt><code>C</code></dt><dd class="mono-inline" title="${fullHex(commitment.c)}">${shortHex(commitment.c)}</dd></div>
+		  <div><dt>tried <code>s${noTrapdoor ? '?' : '′'}</code></dt><dd class="mono-inline" title="${fullHex(sTried)}">${shortHex(sTried)}</dd></div>
           <div><dt><code>g<sup>${FALSE_VALUE}</sup>·h<sup>s${noTrapdoor ? '?' : '′'}</sup> mod p</code></dt><dd class="mono-inline" title="${fullHex(recomputed)}">${shortHex(recomputed)}</dd></div>
         </dl><p class="proto-meta">${
 					noTrapdoor
