@@ -8,7 +8,7 @@ export default defineConfig({
 	workers: 1,
 	reporter: process.env.CI ? [['github'], ['list']] : 'list',
 	use: {
-		baseURL: 'http://localhost:4173/crypto-lab-zk-arena/',
+		baseURL: 'http://localhost:4712/crypto-lab-zk-arena/',
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
 	},
@@ -16,8 +16,8 @@ export default defineConfig({
 		{ name: 'chromium', use: { ...devices['Desktop Chrome'] } },
 	],
 	webServer: {
-		command: 'npm run preview -- --port 4173 --strictPort',
-		port: 4173,
+		command: 'npm run preview -- --port 4712 --strictPort',
+		port: 4712,
 		reuseExistingServer: !process.env.CI,
 		timeout: 30_000,
 	},
