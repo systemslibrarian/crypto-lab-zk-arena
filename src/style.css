@@ -74,6 +74,24 @@
   box-sizing: border-box;
 }
 
+/* The `hidden` attribute must actually hide, everywhere, once.
+   The UA rule is `[hidden] { display: none }` — an attribute selector, whose
+   specificity (0,1,0) is exactly that of a class. So any later `.foo { display:
+   … }` beats it, and this stylesheet has been losing that race one element at a
+   time: `.warning-banner[hidden]`, `.back-to-top[hidden]`, `.quiz-result[hidden]`,
+   `.viz-truncation[hidden]`, `.kbd-overlay[hidden]` and `.proto-verdict[hidden]`
+   are six separate patches, each added after a specific panel was seen showing
+   through. #quiz-share never got a seventh, so a 184x56 "Copy share link"
+   button offering to share a quiz result that did not exist yet painted from
+   first paint.
+   This rule ends the pattern: `!important` so a future `display` on any
+   hideable class cannot silently win again. The six per-class patches above are
+   now redundant but harmless, and are left in place rather than swept out in
+   the same change. */
+[hidden] {
+  display: none !important;
+}
+
 html {
   scroll-behavior: smooth;
 }

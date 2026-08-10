@@ -168,3 +168,34 @@ test('axe-core: 0 violations in light theme', async ({ page }) => {
 		.analyze();
 	expect(res.violations, JSON.stringify(res.violations, null, 2)).toEqual([]);
 });
+
+/* ── The hidden attribute must actually hide ──────────────────────────────
+ * `[hidden] { display: none }` is a UA rule whose attribute selector has the
+ * same specificity (0,1,0) as a class, so any later `.foo { display: … }` beats
+ * it. This stylesheet lost that race repeatedly and was patched one element at
+ * a time — six `.something[hidden]` rules, each added after a specific panel
+ * was caught showing through. #quiz-share never got a seventh, so a 184x56
+ * "Copy share link" button offering to share a quiz result that did not exist
+ * painted from first paint.
+ *
+ * Asserted for EVERY element carrying `hidden`, which is the point: a
+ * per-element assertion would have to be added a seventh time, and an eighth.
+ */
+test('nothing marked hidden is painted', async ({ page }) => {
+	const total = await page.locator('[hidden]').count();
+	expect(total, 'no [hidden] elements — this test would prove nothing').toBeGreaterThan(0);
+
+	const painted = await page.evaluate(() =>
+		[...document.querySelectorAll('[hidden]')]
+			.map((el) => {
+				const r = el.getBoundingClientRect();
+				return {
+					who: el.id || el.className.toString(),
+					display: getComputedStyle(el).display,
+					size: `${Math.round(r.width)}x${Math.round(r.height)}`,
+				};
+			})
+			.filter((x) => x.display !== 'none'),
+	);
+	expect(painted, 'elements marked hidden are painted').toEqual([]);
+});
