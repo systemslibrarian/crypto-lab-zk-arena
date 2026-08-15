@@ -74,7 +74,7 @@ npm run dev
 
 ## Tech
 
-Vite + TypeScript, zero runtime dependencies. The comparison corpus and recommender weights live in `src/data.ts`; the arena and quiz UI are plain DOM in `src/ui.ts`. The two live-crypto exhibits are real, spec-accurate, and unit-tested: the Schnorr sigma-protocol in `src/schnorr.ts` and the trusted-setup Pedersen-commitment ceremony (with the toxic-waste equivocation) in `src/trustedsetup.ts`. Dark mode by default with a persisted theme toggle that respects `prefers-color-scheme`.
+Vite + TypeScript, zero runtime dependencies. The comparison corpus and recommender weights live in `src/data.ts`; the arena and quiz UI are plain DOM in `src/ui.ts`. The two live-crypto exhibits are real, spec-accurate, and unit-tested: the Schnorr sigma-protocol in `src/schnorr.ts` and the trusted-setup Pedersen-commitment ceremony (with the toxic-waste equivocation) in `src/trustedsetup.ts`. Dark mode throughout.
 
 ```bash
 npm install

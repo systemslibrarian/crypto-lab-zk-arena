@@ -161,13 +161,6 @@ test('axe-core: 0 violations across whole page', async ({ page }) => {
 	expect(res.violations, JSON.stringify(res.violations, null, 2)).toEqual([]);
 });
 
-test('axe-core: 0 violations in light theme', async ({ page }) => {
-	await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
-	const res = await new AxeBuilder({ page })
-		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'])
-		.analyze();
-	expect(res.violations, JSON.stringify(res.violations, null, 2)).toEqual([]);
-});
 
 /* ── The hidden attribute must actually hide ──────────────────────────────
  * `[hidden] { display: none }` is a UA rule whose attribute selector has the
