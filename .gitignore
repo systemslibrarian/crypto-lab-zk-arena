@@ -6,3 +6,4 @@ verify.mjs
 verify-x.mjs
 test-results/
 playwright-report/
+chat.md
