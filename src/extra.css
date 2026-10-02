@@ -798,11 +798,34 @@
   transform: translateY(4px);
   pointer-events: none;
   transition: opacity 140ms ease, transform 140ms ease;
+  /* OUT OF LAYOUT WHILE HIDDEN. These popovers are 288px wide, absolutely
+     positioned at `left: 0` on an inline term, and hidden with opacity rather
+     than display -- so at a 390px viewport every one of them still occupied
+     layout and the rightmost pushed the document to 518px. The page scrolled
+     sideways by 128px at rest, with nothing visible to explain it, against
+     WCAG 1.4.10. Hiding them from layout takes that to 0.
+
+     `display: none` costs the fade-in, which is the honest trade and the reason
+     it is written down. The alternative that would have kept both -- pinning the
+     popover to the viewport with `position: fixed; left: 12px; right: 12px` at
+     phone width -- was measured and rejected: it also pins it VERTICALLY to the
+     viewport, so `bottom: calc(100% + 8px)` stops meaning "above the term" and
+     the popover landed between 577px and 1376px away from the word it defines.
+     A tooltip that is not beside its term is worse than one that does not fade.
+
+     One residue is recorded rather than hidden: a popover SHOWN on a term near
+     the right edge still extends past it while open, 128px at worst. That is a
+     hover- or focus-only state rather than the page's resting layout, and
+     fixing it needs the popover to flip to the other side when it would
+     overflow -- `position-try-fallbacks: flip-inline`, which today only
+     Chromium implements. */
+  display: none;
 }
 
 .gloss:hover .gloss__pop,
 .gloss:focus .gloss__pop,
 .gloss:focus-within .gloss__pop {
+  display: block;
   opacity: 1;
   transform: none;
 }
