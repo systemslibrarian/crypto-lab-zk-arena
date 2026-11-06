@@ -92,14 +92,14 @@ export interface ZkSystem {
 export const SYSTEMS: ZkSystem[] = [
 	{ name: 'Groth16', type: 'SNARK', setup: 'per-circuit trusted setup', pq: 'no', note: 'Compact proofs (~128\u2013192 B for common curves), pairing-based verification; timings depend on workload, backend, security target and machine. Setup must be redone per circuit.' },
 	{ name: 'PLONK', type: 'SNARK', setup: 'universal trusted setup', pq: 'no', note: 'One universal setup reusable across circuits; slightly larger proofs than Groth16.' },
-	{ name: 'Halo2', type: 'SNARK', setup: 'no trusted setup (IPA)', pq: 'no', note: 'Recursive-friendly SNARK avoiding a trusted setup via inner-product arguments; still pairing/EC-based.' },
+	{ name: 'Halo2', type: 'SNARK', setup: 'no trusted setup (IPA)', pq: 'no', note: 'Recursive-friendly SNARK avoiding a trusted setup. The Halo line it builds on rests on the discrete-log assumption over cycles of elliptic curves rather than on pairings — Bowe, Grigg and Hopwood, ePrint 2019/1021, “Recursive Proof Composition without a Trusted Setup”.' },
 	{ name: 'FRI-based STARK', type: 'STARK', setup: 'transparent (none)', pq: 'plausible', note: 'Hash-based proofs via FRI; transparent and plausibly post-quantum, at the cost of larger proofs.' },
 	// Plonky2's own README calls it "a SNARK implementation based on techniques
 	// from PLONK and FRI": PLONK-style arithmetization, FRI as the polynomial
 	// commitment scheme. "STARK-style" is common shorthand for the FRI half, but
 	// the family label is SNARK. It is transparent and plausibly post-quantum
 	// because FRI is hash-based, not because it is a STARK.
-	{ name: 'Plonky2', type: 'SNARK', setup: 'transparent (none)', pq: 'plausible', note: 'PLONK-style arithmetization with hash-based FRI commitments — a SNARK that still needs no trusted setup; recursion-friendly and very fast to prove.' },
+	{ name: 'Plonky2', type: 'SNARK', setup: 'transparent (none)', pq: 'plausible', note: 'TurboPLONK arithmetization with PLONK’s polynomial testing replaced by FRI — a SNARK that still needs no trusted setup. Its own specification attributes the prover gain to encoding the witness in a 64-bit field, and reports about 300 ms for a recursive proof on a commodity laptop: a stated figure under stated conditions, not a general speed ranking.' },
 ];
 
 // --- use-case recommender --------------------------------------------------
