@@ -116,3 +116,7 @@ Run locally against the preview build:
 *Part of the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite.*
 
 *"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31*
+
+## Research scope review — November 2026
+
+CL3071: Performance rankings depend on workload, backend, curve/field, security target and machine. Prover and verifier dimensions have no universal winner; circuit-size quiz choices give equal family weights. Percentages are heuristic preference weights, not speedups or probabilities. Source: https://eprint.iacr.org/2023/1503 (pp. 13–21).

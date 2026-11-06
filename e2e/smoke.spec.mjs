@@ -192,3 +192,12 @@ test('nothing marked hidden is painted', async ({ page }) => {
 	);
 	expect(painted, 'elements marked hidden are painted').toEqual([]);
 });
+
+test('performance comparison and size-only recommendation remain conditional', async ({ page }) => {
+  await page.getByRole('tab', { name: /Prover time/ }).click();
+  await expect(page.locator('.dim-verdict')).toContainText('Depends');
+  await expect(page.locator('body')).toContainText('same workload, implementation/backend');
+  await page.getByRole('radiogroup', { name: 'Are you proving very large computations?' }).getByRole('radio').first().click();
+  await expect(page.locator('#quiz-result')).toContainText('50% SNARK, 50% STARK');
+  await expect(page.locator('#quiz-result')).toContainText('not probabilities or speedups');
+});

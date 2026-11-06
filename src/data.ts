@@ -34,10 +34,10 @@ export const DIMENSIONS: Dimension[] = [
 	{
 		id: 'prove-time',
 		label: 'Prover time / scalability',
-		snark: 'fast on small circuits; setup-bound',
-		stark: 'scales quasi-linearly; parallelisable',
-		winner: 'stark',
-		detail: 'On small circuits SNARK proving can be faster, but STARK provers scale quasi-linearly and parallelise well, winning decisively on very large computations.',
+		snark: 'backend and workload dependent',
+		stark: 'parallelism and scaling depend on backend',
+		winner: 'tie',
+		detail: 'No universal performance winner. Compare the same workload, implementation/backend, curve or field, security target and machine. Include witness generation, serialization, memory and failures; separate indexing from ceremony costs. zk-Bench (ePrint 2023/1503) measures particular stacks, not a family-wide ordering.',
 	},
 	{
 		id: 'trusted-setup',
@@ -90,7 +90,7 @@ export interface ZkSystem {
 }
 
 export const SYSTEMS: ZkSystem[] = [
-	{ name: 'Groth16', type: 'SNARK', setup: 'per-circuit trusted setup', pq: 'no', note: 'Smallest proofs (~128\u2013192 B), fastest verify; setup must be redone per circuit.' },
+	{ name: 'Groth16', type: 'SNARK', setup: 'per-circuit trusted setup', pq: 'no', note: 'Compact proofs (~128\u2013192 B for common curves), pairing-based verification; timings depend on workload, backend, security target and machine. Setup must be redone per circuit.' },
 	{ name: 'PLONK', type: 'SNARK', setup: 'universal trusted setup', pq: 'no', note: 'One universal setup reusable across circuits; slightly larger proofs than Groth16.' },
 	{ name: 'Halo2', type: 'SNARK', setup: 'no trusted setup (IPA)', pq: 'no', note: 'Recursive-friendly SNARK avoiding a trusted setup via inner-product arguments; still pairing/EC-based.' },
 	{ name: 'FRI-based STARK', type: 'STARK', setup: 'transparent (none)', pq: 'plausible', note: 'Hash-based proofs via FRI; transparent and plausibly post-quantum, at the cost of larger proofs.' },
@@ -138,8 +138,8 @@ export const QUESTIONS: UseCase[] = [
 		id: 'scale',
 		prompt: 'Are you proving very large computations?',
 		options: [
-			{ label: 'Yes \u2014 huge circuits, need scalable proving', weight: { snark: 0, stark: 3 } },
-			{ label: 'No \u2014 modest circuit sizes', weight: { snark: 2, stark: 0 } },
+			{ label: 'Yes \u2014 huge circuits, need scalable proving', weight: { snark: 1, stark: 1 } },
+			{ label: 'No \u2014 modest circuit sizes', weight: { snark: 1, stark: 1 } },
 		],
 	},
 	{

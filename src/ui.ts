@@ -107,7 +107,7 @@ function formatBytes(b: number): string {
 function winnerChip(w: Winner): string {
 	if (w === 'snark') return `<span class="vs-chip vs-chip--snark" aria-label="Favours SNARK">SNARK</span>`;
 	if (w === 'stark') return `<span class="vs-chip vs-chip--stark" aria-label="Favours STARK">STARK</span>`;
-	return `<span class="vs-chip vs-chip--tie" aria-label="Tie">Tie</span>`;
+	return `<span class="vs-chip vs-chip--tie" aria-label="Depends on workload">Depends</span>`;
 }
 
 function renderHero(): HTMLElement {
@@ -253,7 +253,7 @@ function renderArena(): HTMLElement {
           <p class="mono-inline dim-side-val">${escapeHtml(d.stark)}</p>
         </div>
       </div>
-      <p class="dim-verdict">Generally favours: ${winnerChip(d.winner)}</p>
+      <p class="dim-verdict">Comparison: ${winnerChip(d.winner)}</p>
       <p class="panel-copy">${escapeHtml(d.detail)}</p>
     `;
 	}
@@ -1552,7 +1552,7 @@ function renderRecommender(): HTMLElement {
       <div>
         <p class="section-kicker">Recommender</p>
         <h2 id="recommender-heading">Pick Your Use Case</h2>
-        <p class="section-footnote">Answer a few questions and the arena will score a recommendation. Your answers are saved in the URL — copy the link to share your result.</p>
+        <p class="section-footnote">This heuristic suggests a starting point, not a measured performance ranking. Circuit size alone gives neither family an advantage; benchmark your workload, backend, security target and machine. Your answers are saved in the URL — copy the link to share your result.</p>
       </div>
     </div>
     <div class="quiz" role="form" aria-labelledby="recommender-heading"></div>
@@ -1603,7 +1603,7 @@ function renderRecommender(): HTMLElement {
 				? 'It’s a genuine toss-up — your needs pull both ways. Re-weight by what matters most.'
 				: lead === 'snark'
 					? 'Your priorities point toward a <strong>zk-SNARK</strong> — small proofs and mature tooling outweigh the setup and quantum tradeoffs for you.'
-					: 'Your priorities point toward a <strong>zk-STARK</strong> — transparency, post-quantum security, or scale matter more than proof size for you.';
+					: 'Your priorities point toward a <strong>zk-STARK</strong> — transparency or plausible post-quantum security matter more than proof size for you.';
 		result.innerHTML = `
       <p class="sr-only">Current recommendation: ${snarkPct}% SNARK, ${starkPct}% STARK.</p>
       <div class="result-bar" role="img" aria-label="Recommendation balance: ${snarkPct}% SNARK, ${starkPct}% STARK">
@@ -1611,7 +1611,7 @@ function renderRecommender(): HTMLElement {
         <div class="result-fill result-fill--stark" style="width:${starkPct}%"><span class="result-fill__label">STARK ${starkPct}%</span></div>
       </div>
       <p class="result-verdict">${verdict}</p>
-      <p class="section-footnote">${answered} of ${QUESTIONS.length} questions answered.</p>
+      <p class="section-footnote">${answered} of ${QUESTIONS.length} questions answered. These percentages are heuristic weights, not probabilities or speedups. <a href="https://eprint.iacr.org/2023/1503">Benchmark scope: zk-Bench</a>.</p>
     `;
 	}
 
