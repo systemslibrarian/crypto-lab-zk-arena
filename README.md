@@ -40,7 +40,7 @@ The Arena lets you click any comparison dimension to see both systems' values si
 ## What Can Go Wrong
 
 - **Assuming a trusted setup is harmless** — if the setup ceremony's secret ("toxic waste") is not destroyed, an attacker can forge proofs; this is the central risk many SNARKs carry and STARKs avoid.
-- **Deploying a pairing-based SNARK for long-lived security** — elliptic-curve and pairing assumptions fall to a sufficiently large quantum computer, so harvest-now-decrypt-later concerns apply.
+- **Deploying a pairing-based SNARK for long-lived security** — elliptic-curve and pairing assumptions fall to a sufficiently large quantum computer, which could then forge proofs. The exposure is to soundness, not secrecy: a system that must still reject false statements once such a machine exists needs another proof system. Proofs already published are not opened by it, because Groth16-style zero-knowledge does not rest on those assumptions: Groth, *On the Size of Pairing-based Non-interactive Arguments*, [ePrint 2016/260](https://eprint.iacr.org/2016/260), Theorem 2, proves **perfect** zero-knowledge, and only knowledge soundness is conditional there (statistical, against generic bilinear-group adversaries). So this is not a harvest-now-decrypt-later risk.
 - **Posting large STARK proofs on-chain naively** — proof size drives calldata cost; STARKs are often wrapped in a small SNARK precisely to make on-chain verification cheap.
 - **Confusing "transparent" with "zero-knowledge"** — STARK transparency refers to needing no trusted setup; zero-knowledge is a separate, optional property.
 - **Reading one benchmark as universal** — prover and verifier times are highly circuit-dependent; a result on one workload may reverse on another.
