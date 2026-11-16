@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { auditControlNames, formatControlNameFailures } from './control-names.mjs';
 
 test.beforeEach(async ({ page }) => {
 	page.on('pageerror', (e) => {
@@ -159,6 +160,10 @@ test('axe-core: 0 violations across whole page', async ({ page }) => {
 		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'])
 		.analyze();
 	expect(res.violations, JSON.stringify(res.violations, null, 2)).toEqual([]);
+	// axe's `label` rule accepts a bare `placeholder` as an accessible name, so a
+	// deleted label can leave this gate green. See `control-names.mjs`.
+	const unnamed = formatControlNameFailures(await auditControlNames(page));
+	expect(unnamed, 'form controls named only by placeholder/title').toEqual([]);
 });
 
 
