@@ -119,4 +119,4 @@ Run locally against the preview build:
 
 ## Research scope review — November 2026
 
-CL3071: Performance rankings depend on workload, backend, curve/field, security target and machine. Prover and verifier dimensions have no universal winner; circuit-size quiz choices give equal family weights. Percentages are heuristic preference weights, not speedups or probabilities. Source: https://eprint.iacr.org/2023/1503 (pp. 13–21).
+Jens Ernstberger et al., *zk-Bench: A Toolset for Comparative Evaluation and Performance Benchmarking of SNARKs* (2023), https://eprint.iacr.org/2023/1503: performance rankings depend on workload, backend, curve/field, security target and machine. Prover and verifier dimensions have no universal winner; circuit-size quiz choices give equal family weights. Percentages are heuristic preference weights, not speedups or probabilities. Source: https://eprint.iacr.org/2023/1503 (pp. 13–21).
