@@ -8,7 +8,7 @@ export default defineConfig({
 	workers: 1,
 	reporter: process.env.CI ? [['github'], ['list']] : 'list',
 	use: {
-		baseURL: 'http://localhost:4712/crypto-lab-zk-arena/',
+		baseURL: 'http://localhost:4257/crypto-lab-zk-arena/',
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
 	},
@@ -23,8 +23,8 @@ export default defineConfig({
 		// gate certifies code that no longer compiles. This was hit live while
 		// adding the [hidden] test below: the fix was in the stylesheet and the
 		// test failed anyway, because dist/ predated it.
-		command: 'npm run build && npm run preview -- --port 4712 --strictPort',
-		port: 4712,
+		command: 'npm run build && npm run preview -- --port 4257 --strictPort',
+		port: 4257,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,
 	},
