@@ -2,7 +2,10 @@
 import lighthouse from 'lighthouse';
 import * as chromeLauncher from 'chrome-launcher';
 
-const URL = process.env.LIGHTHOUSE_URL || 'http://localhost:4179/crypto-lab-zk-arena/';
+// 4257 is this lab's port in crypto-lab/tools/playwright-ports.json. The
+// default read 4179, which belongs to no lab at all, so a bare run measured
+// whatever happened to answer there -- usually nothing.
+const URL = process.env.LIGHTHOUSE_URL || 'http://localhost:4257/crypto-lab-zk-arena/';
 const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 
 const chrome = await chromeLauncher.launch({
