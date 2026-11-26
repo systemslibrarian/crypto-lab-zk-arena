@@ -42,10 +42,10 @@ export const DIMENSIONS: Dimension[] = [
 	{
 		id: 'trusted-setup',
 		label: 'Trusted setup',
-		snark: 'usually required',
+		snark: 'common, but not universal',
 		stark: 'none (transparent)',
 		winner: 'stark',
-		detail: 'Most SNARKs need a trusted setup ceremony (toxic waste risk). STARKs are transparent \u2014 only public randomness.',
+		detail: 'Many deployed pairing-based SNARKs need a structured setup ceremony, but transparent or IPA-based SNARKs do not. Transparency is defining for STARKs: there is no secret setup trapdoor.',
 	},
 	{
 		id: 'pq-security',
@@ -53,15 +53,15 @@ export const DIMENSIONS: Dimension[] = [
 		snark: 'usually NOT pq-secure',
 		stark: 'plausibly pq-secure',
 		winner: 'stark',
-		detail: 'Pairing-based SNARKs break under quantum attack. STARKs rely only on collision-resistant hashes, believed quantum-resistant.',
+		detail: 'Pairing- and discrete-log-based SNARKs are not post-quantum. Transparent FRI-based systems replace those algebraic commitments with hash-based ones and are plausibly post-quantum, subject to the hash, security model and parameters.',
 	},
 	{
 		id: 'assumptions',
 		label: 'Cryptographic assumptions',
-		snark: 'elliptic-curve pairings',
-		stark: 'hash functions only',
-		winner: 'stark',
-		detail: 'Fewer and more conservative assumptions for STARKs; SNARKs lean on stronger, structured algebraic assumptions.',
+		snark: 'varies: pairings, IPA, FRI, and more',
+		stark: 'FRI + hash-based commitments',
+		winner: 'tie',
+		detail: 'The acronym does not determine the assumption set. Groth16 uses pairings, Halo-style SNARKs use discrete-log-based IPA commitments, and Plonky2 is a SNARK using FRI. Compare the concrete protocol, hash, field, model and parameters.',
 	},
 	{
 		id: 'maturity',
@@ -217,8 +217,8 @@ export interface SharedTrait {
 
 export const SHARED: SharedTrait[] = [
 	{
-		title: 'Both are zero-knowledge',
-		body: 'A verifier learns only that a statement is true \u2014 nothing about the secret witness behind it.',
+		title: 'The zk-variants are zero-knowledge',
+		body: 'For the zk-SNARKs and zk-STARKs compared here, a verifier learns nothing about the secret witness beyond what follows from the public statement. A bare STARK need not include this optional property.',
 	},
 	{
 		title: 'Both are succinct',
@@ -226,7 +226,7 @@ export const SHARED: SharedTrait[] = [
 	},
 	{
 		title: 'Both are non-interactive',
-		body: 'The prover sends a single proof; no back-and-forth with the verifier is needed (via Fiat\u2013Shamir).',
+		body: 'The prover sends a single proof; no live back-and-forth is needed. Many IOP-based systems obtain this with Fiat\u2013Shamir, while CRS-based systems such as Groth16 are non-interactive by construction.',
 	},
 	{
 		title: 'STARK is not always zero-knowledge',

@@ -564,10 +564,13 @@ function groupNote(params: GroupParams): string {
         finishes in under a millisecond in this tab.
       </p>
       <p>
-        <strong>So this exhibit does not have the zero-knowledge property it is teaching.</strong>
-        Zero knowledge is a statement about what the <em>transcript</em> reveals, and the transcript
-        here is fine — but the public key was already leaking before the protocol started. Press the
-        button below and watch it happen, then switch to the safe group and press it again.
+        <strong>This is a parameter failure, not a failure of the transcript's zero-knowledge
+        simulation.</strong> Zero knowledge asks whether the transcript reveals anything beyond the
+        public statement <code>y</code>. The simulator below still reproduces that transcript from
+        <code>y</code> alone. But <code>y</code> itself already leaks part of the witness under these
+        broken parameters, so the overall construction gives unacceptable witness privacy. Press
+        the button below and watch the public-statement leak happen, then switch to the safe group
+        and press it again.
       </p>
       <p class="proto-meta">
         We keep the toy group because you can follow its arithmetic by hand: 13441 is small enough to
@@ -753,8 +756,9 @@ function createLeakLab(opts: {
         ${
 					p.id === 'toy'
 						? `Recovering the remaining 2<sup>${leak.bitsRemaining.toFixed(0)}</sup> would need a real
-             discrete-log break, so the key is not <em>fully</em> broken — but "leaks 19 bits of the
-             secret with no interaction" is not zero knowledge either.`
+             discrete-log break, so the key is not <em>fully</em> broken. The public statement still
+             leaks 19 bits of its witness, which is unacceptable parameter security even though the
+             proof transcript can remain zero-knowledge relative to that public statement.`
 						: `The factorisation of <code>q</code> is a published property of these standardised
              parameters, not something computed here — factoring a 2047-bit number in a browser tab
              is not possible, and this demo will not pretend otherwise.`
@@ -1134,12 +1138,12 @@ function renderProtocol(): HTMLElement {
 			// verifier running on this run's numbers. The two sides are printed above
 			// so the reader can check the comparison rather than take the banner's word.
 			const zkCaveat = params.primeOrder
-				? `having learned nothing about it from the transcript.`
-				: `having learned nothing about it <em>from the transcript</em> — though in this toy group
-             the public key had already leaked ~19 bits before the protocol began.`;
+				? `The transcript gives Bob no information about <code>x</code> beyond the public statement <code>y</code>.`
+				: `The transcript adds no information beyond <code>y</code>, though in this toy group the public key
+             had already leaked ~19 bits before the protocol began.`;
 			verdict.innerHTML = ok
-				? `<span class="proto-verdict__mark" aria-hidden="true">✓</span><div><strong>Proof accepted.</strong> Bob is now convinced Alice knows <code>x</code>, ${zkCaveat}</div>`
-				: `<span class="proto-verdict__mark" aria-hidden="true">✗</span><div><strong>Proof rejected.</strong> The two sides do not match — Alice cannot have known the real <code>x</code>.</div>`;
+				? `<span class="proto-verdict__mark" aria-hidden="true">✓</span><div><strong>Proof accepted.</strong> This response is valid evidence that Alice knows <code>x</code>. ${zkCaveat}</div>`
+				: `<span class="proto-verdict__mark" aria-hidden="true">✗</span><div><strong>Proof rejected.</strong> The two sides do not match, so this response is invalid. Rejection does <em>not</em> establish whether Alice knows <code>x</code>; it establishes only that this transcript failed verification.</div>`;
 		}
 		updateButtons();
 	}
@@ -1332,8 +1336,9 @@ function renderTrustedSetup(): HTMLElement {
         so the verifier accepts a value that was never committed.
       </p>
       <p>
-        Destroy <code>τ</code> and that back-solve is impossible: recovering it means computing a
-        discrete logarithm, which is infeasible. That is the entire security argument behind a
+        Destroy <code>τ</code> and that back-solve is computationally infeasible under the
+        discrete-logarithm assumption: recovering it means computing a discrete logarithm. That is
+        the security argument behind this
         trusted setup — and exactly why an undestroyed ceremony is a permanent backdoor. STARKs sidestep
         this by having <strong>no secret to destroy</strong> in the first place.
       </p>
@@ -1489,7 +1494,7 @@ function renderTrustedSetup(): HTMLElement {
 			verdict.className = 'proto-verdict ' + (accepted ? 'is-bad' : 'is-ok');
 			verdict.innerHTML = accepted
 				? `<span class="proto-verdict__mark" aria-hidden="true">✗</span><div><strong>False claim ACCEPTED.</strong> The verifier believes <code>C</code> opens to <code>${FALSE_VALUE}</code>. Kept toxic waste just forged a proof of a false statement — this is the trusted-setup backdoor.</div>`
-				: `<span class="proto-verdict__mark" aria-hidden="true">✓</span><div><strong>False claim rejected.</strong> With <code>τ</code> destroyed the numbers don't match, so <code>C</code> stays bound to its true value. This is what an honest ceremony buys you.</div>`;
+				: `<span class="proto-verdict__mark" aria-hidden="true">✓</span><div><strong>False claim rejected.</strong> This explicit guess does not match <code>C</code>. One failed guess does not prove binding by itself; binding comes from the discrete-log assumption, which makes finding a successful second opening without <code>τ</code> computationally infeasible.</div>`;
 		}
 		updateButtons();
 	}

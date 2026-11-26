@@ -66,6 +66,15 @@ test('Forged Schnorr proof is rejected', async ({ page }) => {
 		await page.locator(`.proto-go[data-go="${n}"]`).click();
 	}
 	await expect(page.locator('.proto-verdict.is-bad')).toBeVisible();
+	await expect(page.locator('#proto-verdict')).toContainText('this response is invalid');
+	await expect(page.locator('#proto-verdict')).toContainText('does not establish whether Alice knows');
+});
+
+test('toy-parameter disclosure separates public-statement leakage from zero knowledge', async ({ page }) => {
+	const protocol = page.locator('#protocol');
+	await expect(protocol).toContainText('parameter failure, not a failure of the transcript');
+	await expect(protocol).toContainText('anything beyond the public statement');
+	await expect(protocol).not.toContainText('does not have the zero-knowledge property');
 });
 
 test('Fiat-Shamir mode also verifies', async ({ page }) => {
@@ -94,6 +103,8 @@ test('Trusted setup: destroyed toxic waste rejects the false opening', async ({ 
 		await setup.locator(`.proto-go[data-setup-go="${n}"]`).click();
 	}
 	await expect(page.locator('#setup-verdict.is-ok')).toBeVisible();
+	await expect(page.locator('#setup-verdict')).toContainText('One failed guess does not prove binding');
+	await expect(page.locator('#setup-verdict')).toContainText('discrete-log assumption');
 });
 
 test('Recommender writes answers to URL hash', async ({ page }) => {
